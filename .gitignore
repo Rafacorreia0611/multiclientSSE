@@ -3,3 +3,9 @@
 
 # Ignore Gradle build output directory
 build
+
+# Ignore VS Code settings directory
+.vscode
+
+# Ignore Jenv settings directory
+.java-version
