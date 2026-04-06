@@ -1,6 +1,4 @@
-package sse.model;
-
-import sse.util.BinaryId;
+package sse.domain;
 
 public final class EpochSearchKey extends BinaryId {
     public EpochSearchKey(byte[] value) {

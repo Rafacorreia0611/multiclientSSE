@@ -1,4 +1,4 @@
-package sse.model;
+package sse.domain;
 
 import java.io.Serializable;
 import java.util.Arrays;

@@ -1,4 +1,4 @@
-package sse.model;
+package sse.domain;
 
 public enum UpdateOp {
     ADD,

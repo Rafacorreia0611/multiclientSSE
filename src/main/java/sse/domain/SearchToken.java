@@ -1,4 +1,4 @@
-package sse.model;
+package sse.domain;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;

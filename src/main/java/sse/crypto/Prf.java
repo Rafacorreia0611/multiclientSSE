@@ -1,5 +1,6 @@
 package sse.crypto;
 
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 
@@ -26,6 +27,10 @@ public class Prf {
     public static byte[] prf(SecretKey key, String input) {
         return prf(key, input.getBytes(StandardCharsets.UTF_8));
     }
+
+    public static byte[] prf(SecretKey key, int input) {
+        return prf(key, ByteBuffer.allocate(Integer.BYTES).putInt(input).array());
+    }
     
     public static byte[] prf(byte[] keyBytes, byte[] input) {
         return prf(new SecretKeySpec(keyBytes, "HmacSHA256"), input);
@@ -33,6 +38,10 @@ public class Prf {
 
     public static byte[] prf(byte[] keyBytes, String input) {
         return prf(keyBytes, input.getBytes(StandardCharsets.UTF_8));
+    }
+
+    public static byte[] prf(byte[] keyBytes, int input) {
+        return prf(keyBytes, ByteBuffer.allocate(Integer.BYTES).putInt(input).array());
     }
 
 }

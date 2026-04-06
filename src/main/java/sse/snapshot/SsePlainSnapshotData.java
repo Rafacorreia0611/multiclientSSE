@@ -1,11 +1,15 @@
-package sse.model;
+package sse.snapshot;
 
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public final class PlainSnapshotData implements Serializable {
+import sse.domain.EncryptedUpdateTuple;
+import sse.domain.IndexAddress;
+import sse.domain.KeywordToken;
+
+public final class SsePlainSnapshotData implements Serializable {
     private final Map<KeywordToken, Integer> searchCounter;
     private final Map<KeywordToken, Integer> updateCounter;
     private final Map<KeywordToken, List<IndexAddress>> dbCache;
@@ -14,13 +18,13 @@ public final class PlainSnapshotData implements Serializable {
     private final List<IndexAddress> updateTupleShareOrder;
     private final boolean hasTokenGenKeyShare;
 
-    public PlainSnapshotData(Map<KeywordToken, Integer> searchCounter,
-                             Map<KeywordToken, Integer> updateCounter,
-                             Map<KeywordToken, List<IndexAddress>> dbCache,
-                             Map<KeywordToken, Integer> nextSearchIndex,
-                             Map<IndexAddress, EncryptedUpdateTuple> invertedIndex,
-                             List<IndexAddress> updateTupleShareOrder,
-                             boolean hasTokenGenKeyShare) {
+    public SsePlainSnapshotData(Map<KeywordToken, Integer> searchCounter,
+                                Map<KeywordToken, Integer> updateCounter,
+                                Map<KeywordToken, List<IndexAddress>> dbCache,
+                                Map<KeywordToken, Integer> nextSearchIndex,
+                                Map<IndexAddress, EncryptedUpdateTuple> invertedIndex,
+                                List<IndexAddress> updateTupleShareOrder,
+                                boolean hasTokenGenKeyShare) {
         this.searchCounter = searchCounter;
         this.updateCounter = updateCounter;
         this.dbCache = dbCache;
@@ -66,7 +70,7 @@ public final class PlainSnapshotData implements Serializable {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        PlainSnapshotData that = (PlainSnapshotData) o;
+        SsePlainSnapshotData that = (SsePlainSnapshotData) o;
         return hasTokenGenKeyShare == that.hasTokenGenKeyShare &&
                 Objects.equals(searchCounter, that.searchCounter) &&
                 Objects.equals(updateCounter, that.updateCounter) &&
@@ -84,7 +88,7 @@ public final class PlainSnapshotData implements Serializable {
 
     @Override
     public String toString() {
-        return "PlainSnapshotData[" +
+        return "SsePlainSnapshotData[" +
                 "searchCounter=" + searchCounter +
                 ", updateCounter=" + updateCounter +
                 ", dbCache=" + dbCache +

@@ -1,0 +1,147 @@
+package sse.demo.server;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.ObjectOutput;
+import java.io.ObjectOutputStream;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+import confidential.ConfidentialMessage;
+import confidential.statemanagement.ConfidentialSnapshot;
+import sse.demo.messages.RequestType;
+import sse.demo.messages.ResponseStatus;
+import sse.domain.EncryptedUpdateTuple;
+import sse.domain.SearchToken;
+import sse.domain.State;
+import sse.domain.UpdateToken;
+import sse.facade.SseServerFacade;
+import sse.snapshot.ServerSnapshotData;
+import sse.snapshot.SsePlainSnapshotData;
+import vss.secretsharing.VerifiableShare;
+
+public final class SseServerHandler {
+
+    private final SseServerFacade sseServerFacade;
+    private int activeClientId = -1;
+
+    public SseServerHandler() {
+        this.sseServerFacade = new SseServerFacade();
+    }
+
+    public boolean initializeTokenGenKey(VerifiableShare share) {
+        return sseServerFacade.initializeTokenGenKey(share);
+    }
+
+    public ConfidentialMessage handleSearch(int clientId, SearchToken searchToken) {
+        if (activeClientId == -1) {
+            return statusMessage(ResponseStatus.RETRY);
+        } else if (activeClientId != clientId) {
+            return statusMessage(ResponseStatus.BUSY);
+        }
+        try {
+            if (searchToken == null) {
+                return statusMessage(ResponseStatus.FAILED);
+            }
+            Map<EncryptedUpdateTuple, VerifiableShare> searchResults = sseServerFacade.searchQuery(searchToken);
+            List<EncryptedUpdateTuple> encryptedTuples = new ArrayList<EncryptedUpdateTuple>(searchResults.size());
+            List<VerifiableShare> updateTupleShares = new ArrayList<VerifiableShare>(searchResults.size());
+            for (Map.Entry<EncryptedUpdateTuple, VerifiableShare> entry : searchResults.entrySet()) {
+                encryptedTuples.add(entry.getKey());
+                updateTupleShares.add(entry.getValue());
+            }
+
+            byte[] plainResponse = withStatus(ResponseStatus.OK, serializeSearchResults(encryptedTuples));
+            return new ConfidentialMessage(plainResponse,
+                    updateTupleShares.toArray(new VerifiableShare[updateTupleShares.size()]));
+        } finally {
+            activeClientId = -1;
+        }
+    }
+
+    public ConfidentialMessage handleState(RequestType type, int clientId) {
+        if (activeClientId != -1 && activeClientId != clientId) {
+            return statusMessage(ResponseStatus.BUSY);
+        }
+
+        State state = type == RequestType.STATE_SRCH
+                ? sseServerFacade.getState("search")
+                : sseServerFacade.getState("update");
+        VerifiableShare tokenGenKeyShare = sseServerFacade.getTokenGenKey();
+
+        activeClientId = clientId;
+        byte[] plainResponse = withStatus(ResponseStatus.OK, state.serialize());
+        if (tokenGenKeyShare == null) {
+            return new ConfidentialMessage(plainResponse);
+        }
+
+        return new ConfidentialMessage(plainResponse, tokenGenKeyShare);
+    }
+
+    public ConfidentialMessage handleUpdate(int clientId, UpdateToken updateToken, VerifiableShare updateTupleKeyShare) {
+        if (activeClientId == -1) {
+            return statusMessage(ResponseStatus.RETRY);
+        } else if (activeClientId != clientId) {
+            return statusMessage(ResponseStatus.BUSY);
+        }
+        try {
+            if (updateToken == null || updateTupleKeyShare == null) {
+                return statusMessage(ResponseStatus.FAILED);
+            }
+            sseServerFacade.updateQuery(updateToken, updateTupleKeyShare);
+            return statusMessage(ResponseStatus.OK);
+        } finally {
+            activeClientId = -1;
+        }
+    }
+
+    public ConfidentialSnapshot getConfidentialSnapshot() {
+        SsePlainSnapshotData sseSnapshotData = sseServerFacade.getPlainSnapshotData();
+        byte[] plainData = new ServerSnapshotData(sseSnapshotData, activeClientId).serialize();
+        VerifiableShare[] shares = sseServerFacade.getSnapshotShares(
+                sseSnapshotData.updateTupleShareOrder(),
+                sseSnapshotData.hasTokenGenKeyShare()
+        );
+        return new ConfidentialSnapshot(plainData, shares);
+    }
+
+    public void installConfidentialSnapshot(ConfidentialSnapshot cs) {
+        ServerSnapshotData snapshot = ServerSnapshotData.deserialize(cs.getPlainData());
+        sseServerFacade.installSnapshot(
+                snapshot.sseSnapshotData(),
+                snapshot.tokenGenKeyShare(cs.getShares()),
+                snapshot.updateTupleShares(cs.getShares())
+        );
+        activeClientId = snapshot.activeClientId();
+    }
+
+    private ConfidentialMessage statusMessage(ResponseStatus status) {
+        return new ConfidentialMessage(new byte[]{(byte) status.ordinal()});
+    }
+
+    private byte[] withStatus(ResponseStatus status, byte[] payload) {
+        byte[] result;
+        if (payload == null) {
+            result = new byte[1];
+            result[0] = (byte) status.ordinal();
+            return result;
+        }
+        result = new byte[1 + payload.length];
+        result[0] = (byte) status.ordinal();
+        System.arraycopy(payload, 0, result, 1, payload.length);
+        return result;
+    }
+
+    private byte[] serializeSearchResults(List<EncryptedUpdateTuple> searchResults) {
+        try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
+             ObjectOutput out = new ObjectOutputStream(bos)) {
+            out.writeObject(searchResults);
+            out.flush();
+            bos.flush();
+            return bos.toByteArray();
+        } catch (IOException e) {
+            throw new RuntimeException("Error serializing search results", e);
+        }
+    }
+}

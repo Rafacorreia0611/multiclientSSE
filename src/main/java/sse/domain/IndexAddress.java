@@ -1,6 +1,4 @@
-package sse.model;
-
-import sse.util.BinaryId;
+package sse.domain;
 
 public final class IndexAddress extends BinaryId {
     public IndexAddress(byte[] value) {

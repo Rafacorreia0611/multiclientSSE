@@ -15,7 +15,7 @@ import javax.crypto.SealedObject;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 
-import sse.model.UpdateTuple;
+import sse.domain.UpdateTuple;
 
 public class TupleEncryption {
 

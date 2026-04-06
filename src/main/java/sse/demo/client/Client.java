@@ -13,15 +13,22 @@ public class Client {
             }
         }
 
-        ConfidentialSseClient sseClient = null;
+        ConfidentialClientAdapter clientAdapter = null;
+        SseClientHandler clientHandler = null;
+        InteractiveClient interactiveClient = null;
         try {
-            sseClient = new ConfidentialSseClient(clientId);
-            sseClient.run();
+            clientAdapter = new ConfidentialClientAdapter(clientId);
+            clientHandler = new SseClientHandler(clientAdapter);
+            interactiveClient = new InteractiveClient(clientHandler);
+            interactiveClient.run();
         } catch (Exception e) {
             throw new RuntimeException("Error running client", e);
         } finally {
-            if (sseClient != null) {
-                sseClient.close();
+            if (interactiveClient != null) {
+                interactiveClient.close();
+            }
+            if (clientHandler != null) {
+                clientHandler.close();
             }
         }
 

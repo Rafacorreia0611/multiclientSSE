@@ -1,4 +1,4 @@
-package sse.demo.common;
+package sse.demo.messages;
 
 public enum RequestType {
     SEARCH,
