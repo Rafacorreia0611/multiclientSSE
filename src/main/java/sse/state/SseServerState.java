@@ -38,6 +38,12 @@ public final class SseServerState {
         this.encryptedUpdateCounter = encryptedUpdateCounter;
     }
 
+    public boolean isInitialized() {
+        return encryptedUpdateCounter != null
+                && keyShareStore.hasTokenGenKeyShare()
+                && keyShareStore.hasUpdateCounterKeyShare();
+    }
+
     public SearchCache searchCache() {
         return searchCache;
     }

@@ -10,7 +10,6 @@ import java.util.Map;
 
 import confidential.ConfidentialMessage;
 import confidential.statemanagement.ConfidentialSnapshot;
-import sse.demo.messages.RequestType;
 import sse.demo.messages.ResponseStatus;
 import sse.domain.EncryptedUpdateCounter;
 import sse.domain.EncryptedUpdateTuple;
@@ -66,6 +65,9 @@ public final class SseServerHandler {
     public ConfidentialMessage handleState(int clientId) {
         if (activeClientId != -1 && activeClientId != clientId) {
             return statusMessage(ResponseStatus.BUSY);
+        }
+        if (!sseServerFacade.isInitialized()) {
+            return statusMessage(ResponseStatus.FAILED);
         }
 
         State state = sseServerFacade.getState();

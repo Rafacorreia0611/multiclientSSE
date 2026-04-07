@@ -38,7 +38,14 @@ public final class SseServerFacade {
         updateService.update(state, updateToken, updateTupleKeyShare);
     }
 
+    public boolean isInitialized() {
+        return state.isInitialized();
+    }
+
     public State getState() {
+        if (!state.isInitialized()) {
+            throw new IllegalStateException("Server state is not initialized");
+        }
         return new State(state.searchCounter(), state.encryptedUpdateCounter());
     }
 
