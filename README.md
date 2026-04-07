@@ -1,181 +1,97 @@
-# COBRA - COnfidential Byzantine ReplicAtion SMR library
+# Byzantine Fault-Tolerant Searchable Symmetric Encryption
 
-COBRA is a fully-featured state machine replication library that guarantees the confidentiality of the data. 
-Confidentiality is ensured by integrating a secret sharing mechanism into the 
-modified [BFT-SMaRt](https://github.com/bft-smart/library) library, a fully-featured replication library without 
-confidentiality guarantees. You can find the modified version of the BFT-SMaRt library [here](https://github.com/rvassantlal/library).
+This repository contains a master's thesis prototype of a dynamic multi-client Searchable Symmetric Encryption (SSE) protocol built on top of [COBRA](https://github.com/bft-smart/cobra), a confidential Byzantine Fault-Tolerant state machine replication library.
 
-## Limitations
-This library is a proof-of-concept implementation and not a production-ready implementation. 
-Therefore, before using it, consider the following limitations:
-* The periodic execution of the resharing protocol is disabled. It can be activated but requires hardcoding 
-the number of shares to reshare;
-* The constant commitment scheme, i.e., Kate et al.'s protocol, was not tested with recent changes;
-* The adversarial attack for resharing is hardcoded in branches 
-*[adversarial_1_faulty_servers](https://github.com/bft-smart/cobra/tree/adversarial_1_faulty_servers)*, 
-*[adversarial_2_faulty_servers](https://github.com/bft-smart/cobra/tree/adversarial_2_faulty_servers)*, and 
-*[adversarial_3_faulty_servers](https://github.com/bft-smart/cobra/tree/adversarial_3_faulty_servers)*;
-* Recovery and resharing while changing the leader was not tested.
+The SSE implementation lives under [`src/main/java/sse`](/Users/rafacorreia0611/Documents/Tese/multiclientSSE/src/main/java/sse). It supports:
+
+- search
+- add
+- delete
+
+At a high level, this protocol combines SSE with COBRA's confidential replication layer. Confidential data and key material are protected through secret sharing across replicas, so no single server holds the full secret state or can execute the protocol alone. As in COBRA, the system tolerates Byzantine faults as long as `n > 3f + 1`.
+
+## Project Status
+
+This project is a research prototype developed in the context of a master's thesis. It is not production ready.
+
+## Built on COBRA
+
+This repository is a fork built on top of COBRA, and the SSE protocol should be understood as an application/protocol layer over COBRA's confidential BFT infrastructure.
+
+Because of that, the following parts are essentially the same as in COBRA:
+
+- environment and setup expectations
+- compilation and packaging with Gradle
+- local deployment layout under `build/local`
+- runtime scripts such as `smartrun.sh` and `run.cmd`
+
+For the original project and its full documentation, see the [COBRA repository](https://github.com/bft-smart/cobra).
 
 ## Requirements
-The COBRA library is primarily implemented in Java and currently uses Gradle to compile, package, and 
-deploy compiled code for local testing. Nevertheless, we use C to implement the constant commitment scheme 
-functions and call those functions in Java through Java Native Interface.
 
-The current COBRA library was tested using Java 11.0.13.
+This project is primarily implemented in Java and uses Gradle to compile, package, and deploy local test environments. The confidential layer also depends on native C code used by the pairing/commitment components exposed to Java through JNI.
+
+The original COBRA project was tested with Java 11.0.13. This fork follows the same general build model.
 
 ## Compilation and Packaging
-First, clone this repository. Now inside the `COBRA` folder (assuming you did not change the name), follow 
-the following instructions depending on the intended result.
 
-There are two ways to compile and package the COBRA library:
-* Compile and package the library: Execute `./gradlew installDist`. The required jar files and default 
-configurations files will be available inside the `build/install/COBRA` folder.
-* Compile and package to locally test the library: Execute `./gradlew localDeploy`. The execution of Gradle 
-task `localDeploy` will create the folder `build/local` containing `nServers` folders `rep*` and `nClients` 
-folders `cli*` (you can change these parameters in the `build.gradle` file). Each server and client folder 
-will have the required files to run COBRA demos.
+Inside the project root, you can:
 
-***Compiling C code***
+- compile and package the project with `./gradlew installDist`
+- prepare a local deployment with `./gradlew localDeploy`
 
-The constant commitment scheme is implemented in C using [`relic` library](https://github.com/relic-toolkit/relic). 
-Execute the following commands inside `pairing` folder to compile the `relic` library and C code:
-1. Compile the `relic` library by executing `./build_relic.sh`;
-2. Compile the C code by executing `./build.sh <path to java folder>`.
+The `localDeploy` task creates a `build/local` directory with replica folders `rep*` and client folders `cli*`.
+
+### Native C Code
+
+The project uses native C code for the constant commitment scheme through the [`relic`](https://github.com/relic-toolkit/relic) library. If your environment requires rebuilding these components:
+
+1. Inside `pairing`, run `./build_relic.sh`
+2. Then run `./build.sh <path to java folder>`
 
 
-## Usage
-Since COBRA extends the BFT-SMaRt library, first configure BFT-SMaRt following instructions presented in 
-its [repository](https://github.com/bft-smart/library). Then configure COBRA's behaviour by modifying the 
-`config/cobra.config` file.
+## Running the SSE Demo
 
+After preparing the local deployment with `./gradlew localDeploy`, start the replicas and then launch a client.
 
-**TIP:** Reconfigure the system before compiling and packaging. This way, you don't have to configure multiple replicas.
+### 1. Start the replicas
 
-**NOTE:** Following commands considers the Linux operating system. For the Windows operating system, 
-use script `run.cmd` instead of `./smartrun.sh`.
+Run the following commands in four different terminals:
 
-***Running the map demo (4 replicas tolerating 1 fault):***
-
-Execute the following commands across four different server consoles from within 
-the folders `build/local/rep*`:
-```
-build/local/rep0$./smartrun.sh confidential.demo.map.server.Server 0
-build/local/rep1$./smartrun.sh confidential.demo.map.server.Server 1
-build/local/rep2$./smartrun.sh confidential.demo.map.server.Server 2
-build/local/rep3$./smartrun.sh confidential.demo.map.server.Server 3
+```bash
+build/local/rep0$ ./smartrun.sh sse.demo.server.Server 0
+build/local/rep1$ ./smartrun.sh sse.demo.server.Server 1
+build/local/rep2$ ./smartrun.sh sse.demo.server.Server 2
+build/local/rep3$ ./smartrun.sh sse.demo.server.Server 3
 ```
 
-Once all replicas are ready, the client can be launched by executing the following command in 
-directory `build/local/cli0/`:
-```
-build/local/cli0$./smartrun.sh confidential.demo.map.client.Client 100
-```
+### 2. Start the client
 
-***Running throughput and latency experiment:***
+Once all replicas are ready, start the interactive client:
 
-After compiling and packaging, copy the content of the `COBRA/build/install/COBRA` folder into
-different locations/servers. Next, we present an example of running a system with four replicas
-tolerating one fault.
-
-Execute the following commands across four different server consoles:
-```
-./smartrun.sh confidential.benchmark.ThroughputLatencyKVStoreServer 0
-./smartrun.sh confidential.benchmark.ThroughputLatencyKVStoreServer 1
-./smartrun.sh confidential.benchmark.ThroughputLatencyKVStoreServer 2
-./smartrun.sh confidential.benchmark.ThroughputLatencyKVStoreServer 3
+```bash
+build/local/cli0$ ./smartrun.sh sse.demo.client.Client 100
 ```
 
-Once all replicas are ready, you can launch clients by executing the following command:
-```
-./smartrun.sh confidential.benchmark.PreComputedKVStoreClient <initial client id> <num clients> <number of ops> <request size> <write?> <precomputed?> <measurement leader?>
-```
-where:
-* `<initial client id>` - the initial client id, e.g, 100;
-* `<num clients>` - the number clients each execution of command will create, e.g., 20;
-* `<number of ops>` - the number of requests each client will send, e.g., 10000;
-* `<request size>` - the size in byte of each request, e.g., 1024;
-* `<write?>` - requests are of write or read type? E.g., true;
-* `<precompute?>` - are the requests precompute before sending to servers or are created on fly? E.g., true;
-* `<measurement leader?>` - will this client print the latencies? E.g., true.
+On Windows, use `run.cmd` instead of `./smartrun.sh`.
 
-***Interpreting the throughput and latency results***
+### 3. Use the interactive menu
 
-When clients continuously send the requests, servers will print the throughput information
-every two seconds.
-When a client finishes sending the requests, it will print a string containing space-separated
-latencies of each request in nanoseconds. For example, you can use this result to compute average latency.
+The client initializes the SSE state when it starts and then exposes a simple interactive menu with:
 
+- `Search`: retrieves the current result set for a keyword
+- `Add`: inserts a document identifier for a keyword
+- `Delete`: invalidates a previously added document identifier for a keyword
+- `Exit`: closes the interactive client
 
-## Adversarial demonstration
-Branches *[adversarial_1_faulty_servers](https://github.com/bft-smart/cobra/tree/adversarial_1_faulty_servers)*,
-*[adversarial_2_faulty_servers](https://github.com/bft-smart/cobra/tree/adversarial_2_faulty_servers)*, and
-*[adversarial_3_faulty_servers](https://github.com/bft-smart/cobra/tree/adversarial_3_faulty_servers)*
-have hardcoded demonstration of the effect of 1, 2, and 3 faulty servers, respectively, during resharing 
-in a system with ten replicas tolerating three faults.
+## Assumptions and Limitations
 
+- this is a master's thesis prototype
+- the current design allows only one active client at a time
+- liveness follows an obstruction-freedom assumption
+- the protocol assumes honest clients
+- as usual in SSE, some leakage is still present, including search pattern, access pattern, and volume pattern
 
-In all demonstrations, replica 1 acts maliciously during resharing and send an invalid resharing polynomial proposal 
-to replica 2. When this happens, replica 2 will receive an invalid share on the de-blinding polynomial needed to 
-reconstruct its renewed share. Replica 2 starts executing the recovery protocol to recover its valid share.
+## Acknowledgment
 
-During the execution of the recovery protocol, replica 1 sends an invalid recovery polynomial proposal to replica 3, 
-which jeopardizes the recovery. Servers collectively remove replica 1, and replica 2 successfully recovers its share 
-during the second execution of the recovery protocol. This scenario is demonstrated in the branch `adversarial_1_faulty_servers`.
-
-In the scenario of a branch `adversarial_2_faulty_servers`, replica 4 sends an invalid recovery polynomial proposal 
-to replica 3, which compromise the second recovery attempt. Again, after the remaining servers collectively remove 
-replica 4, replica 2 successfully recovers its share during the third attempt.
-
-Finally, in the third branch, `adversarial_3_faulty_servers`, replica 5 compromise the third recovery attempt, 
-which is also removed by the servers. During the fourth recovery attempt, replica 2 successfully recovers its share on 
-resharing polynomial.
-
-You can test these demonstrations by following these instructions:
-1) Clone the repository from the respective branch;
-2) Start replicas by executing the following commands in consoles opened in each of `build/local/rep*` folder:
-    ```
-    build/local/rep0$./smartrun.sh confidential.benchmark.ThroughputLatencyKVStoreServer 0
-    build/local/rep1$./smartrun.sh confidential.benchmark.ThroughputLatencyKVStoreServer 1
-    build/local/rep2$./smartrun.sh confidential.benchmark.ThroughputLatencyKVStoreServer 2
-    build/local/rep3$./smartrun.sh confidential.benchmark.ThroughputLatencyKVStoreServer 3
-    build/local/rep4$./smartrun.sh confidential.benchmark.ThroughputLatencyKVStoreServer 4
-    build/local/rep5$./smartrun.sh confidential.benchmark.ThroughputLatencyKVStoreServer 5
-    build/local/rep6$./smartrun.sh confidential.benchmark.ThroughputLatencyKVStoreServer 6
-    build/local/rep7$./smartrun.sh confidential.benchmark.ThroughputLatencyKVStoreServer 7
-    build/local/rep8$./smartrun.sh confidential.benchmark.ThroughputLatencyKVStoreServer 8
-    build/local/rep9$./smartrun.sh confidential.benchmark.ThroughputLatencyKVStoreServer 9
-    ```
-3) Once all the replicas are ready, execute the following command inside the folder `build/local/cli0/`:
-    ```
-    build/local/cli0$./smartrun.sh confidential.benchmark.PreComputedKVStoreClient 100 1 1 1024 true true false
-    ```
-4) When the previous client terminates, execute the following command inside the folder `build/local/cli0/`:
-   ```
-   build/local/cli0$./smartrun.sh confidential.reconfiguration.ReconfigurationClient 7002 config/reconfiguration_f_3.json
-    ```
-
-The last step (Step 4) execution will trigger resharing protocols in servers. Depending on the branch, 
-replica 2 will end resharing its state after the second, third, or fourth recovery attempt and will show 
-the total resharing cost in milliseconds of resharing shares of one secret. To observe the positive impact of 
-our protocol when resharing multiple secret shares with the influence of an adversary, in Step 3 execute:
-```
-build/local/cli0$./smartrun.sh confidential.benchmark.PreComputedKVStoreClient 100 1 1000 1024 true true false
-```
-
-## Changes to BFT-SMaRt
-Following are the relevant modifications done in BFT-SMaRt:
-* Invoking ordered and unordered operations with distinct public and private parts of requests;
-* Temporarily storing private state (i.e., shares) in `ClientData` during the consensus execution;
-* Checking proposed value during the consensus execution;
-* Added a metadata field inside `MessageContext` and `TOMMessage`;
-* Added a reconfiguration listener.
-
-## References
-
-We empirically showed that the COBRA library improves the state-of-the-art protocol 
-[VSSR](https://dl.acm.org/doi/10.1145/3319535.3354207) in recovery and the state-of-the-art protocol 
-[MPSS](https://dl.acm.org/doi/10.1145/1880022.1880028) in resharing. The prototype implementation of VSSR and MPSS 
-can be found [here](https://github.com/rvassantlal/VSSR) and [here](https://github.com/rvassantlal/MPSS), respectively.
-
-***Feel free to contact us if you have any questions!***
+This work is built on top of COBRA. Credit for the confidential BFT replication layer, packaging workflow, and deployment model belongs to the COBRA project and its authors.
