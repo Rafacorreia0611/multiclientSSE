@@ -49,9 +49,8 @@ public final class ConfidentialServerAdapter implements ConfidentialSingleExecut
                 case UPDATE:
                     UpdateToken updateToken = UpdateToken.deserialize(readPayload(in));
                     return handler.handleUpdate(clientId, updateToken, vss[0]);
-                case STATE_SRCH:
-                case STATE_UPD:
-                    return handler.handleState(type, clientId);
+                case STATE:
+                    return handler.handleState(clientId);
                 default:
                     throw new IllegalArgumentException("Unknown request type: " + type);
             }

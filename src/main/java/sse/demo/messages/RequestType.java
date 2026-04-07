@@ -3,8 +3,7 @@ package sse.demo.messages;
 public enum RequestType {
     SEARCH,
     UPDATE,
-    STATE_SRCH,
-    STATE_UPD,
+    STATE,
     INIT_STATE;
 
     public static RequestType[] values = values();

@@ -99,11 +99,11 @@ public final class ConfidentialClientAdapter {
         return keyGen.generateKey();
     }
 
-    public StateRequestResult requestState(RequestType type) {
+    public StateRequestResult requestState() {
         boolean waitingLogged = false;
         while (true) {
             try {
-                Response response = service.invokeOrdered(serialize(type, null));
+                Response response = service.invokeOrdered(serialize(RequestType.STATE, null));
                 byte[] plainResponse = response.getPainData();
                 if (plainResponse == null || plainResponse.length == 0) {
                     throw new RuntimeException("State response missing from server");

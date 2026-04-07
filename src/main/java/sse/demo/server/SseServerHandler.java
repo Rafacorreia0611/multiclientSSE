@@ -63,7 +63,7 @@ public final class SseServerHandler {
         }
     }
 
-    public ConfidentialMessage handleState(RequestType type, int clientId) {
+    public ConfidentialMessage handleState(int clientId) {
         if (activeClientId != -1 && activeClientId != clientId) {
             return statusMessage(ResponseStatus.BUSY);
         }

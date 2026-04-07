@@ -5,7 +5,6 @@ import java.util.Map;
 
 import javax.crypto.SecretKey;
 
-import sse.demo.messages.RequestType;
 import sse.domain.EncryptedUpdateTuple;
 import sse.domain.SearchToken;
 import sse.domain.State;
@@ -28,7 +27,7 @@ public final class SseClientHandler {
 
     public List<String> search(String keyword) {
         while (true) {
-            ConfidentialClientAdapter.StateRequestResult stateRequest = adapter.requestState(RequestType.STATE_SRCH);
+            ConfidentialClientAdapter.StateRequestResult stateRequest = adapter.requestState();
             State state = stateRequest.state();
             SecretKey tokenGenKey = stateRequest.tokenGenKey();
             SecretKey updateCounterKey = stateRequest.updateCounterKey();
@@ -48,7 +47,7 @@ public final class SseClientHandler {
 
     public void update(String keyword, String docId, boolean isAdd) {
         while (true) {
-            ConfidentialClientAdapter.StateRequestResult stateRequest = adapter.requestState(RequestType.STATE_UPD);
+            ConfidentialClientAdapter.StateRequestResult stateRequest = adapter.requestState();
             State state = stateRequest.state();
             SecretKey tokenGenKey = stateRequest.tokenGenKey();
             SecretKey updateCounterKey = stateRequest.updateCounterKey();
