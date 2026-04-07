@@ -12,6 +12,7 @@ import confidential.facade.server.ConfidentialSingleExecutable;
 import confidential.statemanagement.ConfidentialSnapshot;
 import sse.demo.messages.RequestType;
 import sse.demo.messages.ResponseStatus;
+import sse.domain.EncryptedUpdateCounter;
 import sse.domain.SearchToken;
 import sse.domain.UpdateToken;
 import vss.secretsharing.VerifiableShare;
@@ -32,9 +33,15 @@ public final class ConfidentialServerAdapter implements ConfidentialSingleExecut
             RequestType type = RequestType.getRequestType(in.read());
             int clientId = in.readInt();
             switch (type) {
-                case INIT_TOKEN_GEN_KEY:
+                case INIT_STATE:
+                    EncryptedUpdateCounter encryptedUpdateCounter =
+                            EncryptedUpdateCounter.deserialize(readPayload(in));
                     return statusMessage(
-                            handler.initializeTokenGenKey(vss[0]) ? ResponseStatus.OK : ResponseStatus.FAILED
+                            handler.initializeState(
+                                    encryptedUpdateCounter,
+                                    vss != null && vss.length > 0 ? vss[0] : null,
+                                    vss != null && vss.length > 1 ? vss[1] : null
+                            ) ? ResponseStatus.OK : ResponseStatus.FAILED
                     );
                 case SEARCH:
                     SearchToken searchToken = SearchToken.deserialize(readPayload(in));

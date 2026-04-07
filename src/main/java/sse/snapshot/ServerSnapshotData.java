@@ -64,8 +64,25 @@ public final class ServerSnapshotData implements Serializable {
         return shares[0];
     }
 
-    public Map<IndexAddress, VerifiableShare> updateTupleShares(VerifiableShare[] shares) {
+    public VerifiableShare updateCounterKeyShare(VerifiableShare[] shares) {
+        if (!sseSnapshotData.hasUpdateCounterKeyShare()) {
+            return null;
+        }
         int index = sseSnapshotData.hasTokenGenKeyShare() ? 1 : 0;
+        if (shares == null || index >= shares.length) {
+            throw new IllegalStateException("Snapshot is missing update counter key share");
+        }
+        return shares[index];
+    }
+
+    public Map<IndexAddress, VerifiableShare> updateTupleShares(VerifiableShare[] shares) {
+        int index = 0;
+        if (sseSnapshotData.hasTokenGenKeyShare()) {
+            index++;
+        }
+        if (sseSnapshotData.hasUpdateCounterKeyShare()) {
+            index++;
+        }
         Map<IndexAddress, VerifiableShare> result = new HashMap<IndexAddress, VerifiableShare>();
         for (IndexAddress address : sseSnapshotData.updateTupleShareOrder()) {
             if (shares == null || index >= shares.length) {

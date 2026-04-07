@@ -45,17 +45,18 @@ public final class SseClientFacade {
         return searchTokenService.decryptUpdateTuple(key, iv, encryptedTuple);
     }
 
-    public SearchToken generateSearchToken(SecretKey tokenGenKey, State state, String keyword) {
-        return searchTokenService.generateSearchToken(tokenGenKey, state, keyword);
+    public SearchToken generateSearchToken(SecretKey tokenGenKey, SecretKey updateCounterKey,
+                                           State state, String keyword) {
+        return searchTokenService.generateSearchToken(tokenGenKey, updateCounterKey, state, keyword);
     }
 
     public EncryptedUpdateTuple generateEncryptedUpdateTuple(String docId, boolean isAdd, SecretKey encryptionKey) {
         return updateTokenService.generateEncryptedUpdateTuple(docId, isAdd, encryptionKey);
     }
 
-    public UpdateToken generateUpdateToken(SecretKey tokenGenKey, State state, String keyword,
-                                           EncryptedUpdateTuple encryptedTuple) {
-        return updateTokenService.generateUpdateToken(tokenGenKey, state, keyword, encryptedTuple);
+    public UpdateToken generateUpdateToken(SecretKey tokenGenKey, SecretKey updateCounterKey,
+                                           State state, String keyword, EncryptedUpdateTuple encryptedTuple) {
+        return updateTokenService.generateUpdateToken(tokenGenKey, updateCounterKey, state, keyword, encryptedTuple);
     }
 
     public List<String> extractAddedDocIds(Map<EncryptedUpdateTuple, SecretKey> updates) {

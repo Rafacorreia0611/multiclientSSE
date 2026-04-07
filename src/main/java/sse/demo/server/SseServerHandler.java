@@ -12,6 +12,7 @@ import confidential.ConfidentialMessage;
 import confidential.statemanagement.ConfidentialSnapshot;
 import sse.demo.messages.RequestType;
 import sse.demo.messages.ResponseStatus;
+import sse.domain.EncryptedUpdateCounter;
 import sse.domain.EncryptedUpdateTuple;
 import sse.domain.SearchToken;
 import sse.domain.State;
@@ -30,8 +31,10 @@ public final class SseServerHandler {
         this.sseServerFacade = new SseServerFacade();
     }
 
-    public boolean initializeTokenGenKey(VerifiableShare share) {
-        return sseServerFacade.initializeTokenGenKey(share);
+    public boolean initializeState(EncryptedUpdateCounter encryptedUpdateCounter,
+                                   VerifiableShare tokenGenKeyShare,
+                                   VerifiableShare updateCounterKeyShare) {
+        return sseServerFacade.initializeState(encryptedUpdateCounter, tokenGenKeyShare, updateCounterKeyShare);
     }
 
     public ConfidentialMessage handleSearch(int clientId, SearchToken searchToken) {
@@ -65,18 +68,17 @@ public final class SseServerHandler {
             return statusMessage(ResponseStatus.BUSY);
         }
 
-        State state = type == RequestType.STATE_SRCH
-                ? sseServerFacade.getState("search")
-                : sseServerFacade.getState("update");
+        State state = sseServerFacade.getState();
         VerifiableShare tokenGenKeyShare = sseServerFacade.getTokenGenKey();
+        VerifiableShare updateCounterKeyShare = sseServerFacade.getUpdateCounterKey();
 
         activeClientId = clientId;
         byte[] plainResponse = withStatus(ResponseStatus.OK, state.serialize());
-        if (tokenGenKeyShare == null) {
+        if (tokenGenKeyShare == null || updateCounterKeyShare == null) {
             return new ConfidentialMessage(plainResponse);
         }
 
-        return new ConfidentialMessage(plainResponse, tokenGenKeyShare);
+        return new ConfidentialMessage(plainResponse, tokenGenKeyShare, updateCounterKeyShare);
     }
 
     public ConfidentialMessage handleUpdate(int clientId, UpdateToken updateToken, VerifiableShare updateTupleKeyShare) {
@@ -101,7 +103,8 @@ public final class SseServerHandler {
         byte[] plainData = new ServerSnapshotData(sseSnapshotData, activeClientId).serialize();
         VerifiableShare[] shares = sseServerFacade.getSnapshotShares(
                 sseSnapshotData.updateTupleShareOrder(),
-                sseSnapshotData.hasTokenGenKeyShare()
+                sseSnapshotData.hasTokenGenKeyShare(),
+                sseSnapshotData.hasUpdateCounterKeyShare()
         );
         return new ConfidentialSnapshot(plainData, shares);
     }
@@ -111,6 +114,7 @@ public final class SseServerHandler {
         sseServerFacade.installSnapshot(
                 snapshot.sseSnapshotData(),
                 snapshot.tokenGenKeyShare(cs.getShares()),
+                snapshot.updateCounterKeyShare(cs.getShares()),
                 snapshot.updateTupleShares(cs.getShares())
         );
         activeClientId = snapshot.activeClientId();

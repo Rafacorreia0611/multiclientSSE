@@ -14,15 +14,18 @@ public final class SearchToken implements Serializable {
     private final EpochSearchKey epochSearchKey;
     private final KeywordToken keywordToken;
     private final int searchCounter;
+    private final int currentUpdateCounter;
 
-    public SearchToken(EpochSearchKey epochSearchKey, KeywordToken keywordToken, int searchCounter) {
-        if (epochSearchKey == null || keywordToken == null || searchCounter < 0) {
+    public SearchToken(EpochSearchKey epochSearchKey, KeywordToken keywordToken, int searchCounter,
+                       int currentUpdateCounter) {
+        if (epochSearchKey == null || keywordToken == null || searchCounter < 0 || currentUpdateCounter < 0) {
             throw new IllegalArgumentException(
-                    "epochSearchKey and keywordToken cannot be null and searchCounter cannot be negative");
+                    "epochSearchKey and keywordToken cannot be null and counters cannot be negative");
         }
         this.epochSearchKey = epochSearchKey;
         this.keywordToken = keywordToken;
         this.searchCounter = searchCounter;
+        this.currentUpdateCounter = currentUpdateCounter;
     }
 
     public EpochSearchKey epochSearchKey() {
@@ -35,6 +38,10 @@ public final class SearchToken implements Serializable {
 
     public int searchCounter() {
         return searchCounter;
+    }
+
+    public int currentUpdateCounter() {
+        return currentUpdateCounter;
     }
 
     public byte[] serialize() {
@@ -71,13 +78,14 @@ public final class SearchToken implements Serializable {
         }
         SearchToken that = (SearchToken) o;
         return searchCounter == that.searchCounter &&
+                currentUpdateCounter == that.currentUpdateCounter &&
                 Objects.equals(epochSearchKey, that.epochSearchKey) &&
                 Objects.equals(keywordToken, that.keywordToken);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(epochSearchKey, keywordToken, searchCounter);
+        return Objects.hash(epochSearchKey, keywordToken, searchCounter, currentUpdateCounter);
     }
 
     @Override
@@ -86,6 +94,7 @@ public final class SearchToken implements Serializable {
                 "epochSearchKey=" + epochSearchKey +
                 ", keywordToken=" + keywordToken +
                 ", searchCounter=" + searchCounter +
+                ", currentUpdateCounter=" + currentUpdateCounter +
                 ']';
     }
 }

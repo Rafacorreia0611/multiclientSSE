@@ -16,6 +16,7 @@ import javax.crypto.SecretKey;
 
 import sse.crypto.Prf;
 import sse.crypto.TupleEncryption;
+import sse.crypto.UpdateCounterEncryption;
 import sse.domain.EncryptedUpdateTuple;
 import sse.domain.EpochSearchKey;
 import sse.domain.KeywordToken;
@@ -25,16 +26,27 @@ import sse.domain.UpdateTuple;
 
 public final class SearchTokenService {
 
-    public SearchToken generateSearchToken(SecretKey tokenGenKey, State state, String keyword) {
+    public SearchToken generateSearchToken(SecretKey tokenGenKey, SecretKey updateCounterKey,
+                                           State state, String keyword) {
         byte[] keywordTokenBytes = Prf.prf(tokenGenKey, keyword);
         KeywordToken keywordToken = new KeywordToken(keywordTokenBytes);
 
         int searchCount = state.searchCounter().getOrDefault(keywordToken, 0);
+        Map<KeywordToken, Integer> updateCounter;
+        try {
+            updateCounter = UpdateCounterEncryption.decryptUpdateCounter(
+                    updateCounterKey,
+                    state.encryptedUpdateCounter()
+            );
+        } catch (Exception e) {
+            throw new RuntimeException("Error decrypting update counter", e);
+        }
+        int currentUpdateCounter = updateCounter.getOrDefault(keywordToken, 0);
 
         byte[] epochSearchKeyBytes = Prf.prf(tokenGenKey, keyword + ":" + searchCount);
         EpochSearchKey epochSearchKey = new EpochSearchKey(epochSearchKeyBytes);
 
-        return new SearchToken(epochSearchKey, keywordToken, searchCount);
+        return new SearchToken(epochSearchKey, keywordToken, searchCount, currentUpdateCounter);
     }
 
     public UpdateTuple decryptUpdateTuple(SecretKey key, byte[] iv, EncryptedUpdateTuple encryptedTuple)

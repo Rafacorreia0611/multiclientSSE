@@ -22,8 +22,8 @@ public final class SseClientHandler {
         this.sseClientFacade = new SseClientFacade();
     }
 
-    public void initializeTokenGenKey() {
-        adapter.initializeTokenGenKey();
+    public void initializeState() {
+        adapter.initializeState();
     }
 
     public List<String> search(String keyword) {
@@ -31,8 +31,14 @@ public final class SseClientHandler {
             ConfidentialClientAdapter.StateRequestResult stateRequest = adapter.requestState(RequestType.STATE_SRCH);
             State state = stateRequest.state();
             SecretKey tokenGenKey = stateRequest.tokenGenKey();
+            SecretKey updateCounterKey = stateRequest.updateCounterKey();
 
-            SearchToken searchToken = sseClientFacade.generateSearchToken(tokenGenKey, state, keyword);
+            SearchToken searchToken = sseClientFacade.generateSearchToken(
+                    tokenGenKey,
+                    updateCounterKey,
+                    state,
+                    keyword
+            );
             Map<EncryptedUpdateTuple, SecretKey> searchResults = adapter.sendSearchRequest(searchToken);
             if (searchResults != null) {
                 return sseClientFacade.extractAddedDocIds(searchResults);
@@ -45,10 +51,17 @@ public final class SseClientHandler {
             ConfidentialClientAdapter.StateRequestResult stateRequest = adapter.requestState(RequestType.STATE_UPD);
             State state = stateRequest.state();
             SecretKey tokenGenKey = stateRequest.tokenGenKey();
+            SecretKey updateCounterKey = stateRequest.updateCounterKey();
 
             SecretKey updateTupleKey = sseClientFacade.generateTupleSecretKey();
             EncryptedUpdateTuple encryptedTuple = sseClientFacade.generateEncryptedUpdateTuple(docId, isAdd, updateTupleKey);
-            UpdateToken updateToken = sseClientFacade.generateUpdateToken(tokenGenKey, state, keyword, encryptedTuple);
+            UpdateToken updateToken = sseClientFacade.generateUpdateToken(
+                    tokenGenKey,
+                    updateCounterKey,
+                    state,
+                    keyword,
+                    encryptedTuple
+            );
 
             if (adapter.sendUpdateRequest(updateToken, updateTupleKey)) {
                 return;
@@ -59,4 +72,6 @@ public final class SseClientHandler {
     public void close() {
         adapter.close();
     }
+
+    
 }

@@ -38,7 +38,7 @@ public final class SearchService {
         }
 
         byte[] epochSearchKeyBytes = epochSearchKey.value();
-        int currentUpdateCounter = state.updateCounter().getOrDefault(keywordToken, 0);
+        int currentUpdateCounter = searchToken.currentUpdateCounter();
         int nextIndex = state.searchCache().nextSearchIndexFor(keywordToken);
         for (int i = nextIndex; i <= currentUpdateCounter; i++) {
             byte[] address = Prf.prf(epochSearchKeyBytes, i);

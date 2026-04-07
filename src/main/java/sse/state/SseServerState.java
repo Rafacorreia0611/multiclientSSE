@@ -3,19 +3,20 @@ package sse.state;
 import java.util.HashMap;
 import java.util.Map;
 
+import sse.domain.EncryptedUpdateCounter;
 import sse.domain.KeywordToken;
 
 public final class SseServerState {
 
     private Map<KeywordToken, Integer> searchCounter;
-    private Map<KeywordToken, Integer> updateCounter;
+    private EncryptedUpdateCounter encryptedUpdateCounter;
     private final SearchCache searchCache;
     private final InvertedIndexStore invertedIndexStore;
     private final KeyShareStore keyShareStore;
 
     public SseServerState() {
         this.searchCounter = new HashMap<>();
-        this.updateCounter = new HashMap<>();
+        this.encryptedUpdateCounter = null;
         this.searchCache = new SearchCache();
         this.invertedIndexStore = new InvertedIndexStore();
         this.keyShareStore = new KeyShareStore();
@@ -29,12 +30,12 @@ public final class SseServerState {
         this.searchCounter = searchCounter;
     }
 
-    public Map<KeywordToken, Integer> updateCounter() {
-        return updateCounter;
+    public EncryptedUpdateCounter encryptedUpdateCounter() {
+        return encryptedUpdateCounter;
     }
 
-    public void setUpdateCounter(Map<KeywordToken, Integer> updateCounter) {
-        this.updateCounter = updateCounter;
+    public void setEncryptedUpdateCounter(EncryptedUpdateCounter encryptedUpdateCounter) {
+        this.encryptedUpdateCounter = encryptedUpdateCounter;
     }
 
     public SearchCache searchCache() {

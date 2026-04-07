@@ -16,7 +16,7 @@ public final class InteractiveClient {
     }
 
     public void run() {
-        client.initializeTokenGenKey();
+        client.initializeState();
 
         while (true) {
             System.out.println(printMenu());

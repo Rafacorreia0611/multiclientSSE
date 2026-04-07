@@ -5,7 +5,7 @@ public enum RequestType {
     UPDATE,
     STATE_SRCH,
     STATE_UPD,
-    INIT_TOKEN_GEN_KEY;
+    INIT_STATE;
 
     public static RequestType[] values = values();
 

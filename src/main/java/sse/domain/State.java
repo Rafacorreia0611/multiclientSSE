@@ -15,26 +15,22 @@ import java.util.Objects;
 
 public final class State implements Serializable {
     private final Map<KeywordToken, Integer> searchCounter;
-    private final Map<KeywordToken, Integer> updateCounter;
+    private final EncryptedUpdateCounter encryptedUpdateCounter;
 
-    public State(Map<KeywordToken, Integer> searchCounter, Map<KeywordToken, Integer> updateCounter) {
-        if (searchCounter == null || updateCounter == null) {
-            throw new IllegalArgumentException("Counters cannot be null");
+    public State(Map<KeywordToken, Integer> searchCounter, EncryptedUpdateCounter encryptedUpdateCounter) {
+        if (searchCounter == null || encryptedUpdateCounter == null) {
+            throw new IllegalArgumentException("searchCounter and encryptedUpdateCounter cannot be null");
         }
         this.searchCounter = Collections.unmodifiableMap(new HashMap<>(searchCounter));
-        this.updateCounter = Collections.unmodifiableMap(new HashMap<>(updateCounter));
-    }
-
-    public State(Map<KeywordToken, Integer> searchCounter) {
-        this(searchCounter, Collections.<KeywordToken, Integer>emptyMap());
+        this.encryptedUpdateCounter = encryptedUpdateCounter;
     }
 
     public Map<KeywordToken, Integer> searchCounter() {
         return searchCounter;
     }
 
-    public Map<KeywordToken, Integer> updateCounter() {
-        return updateCounter;
+    public EncryptedUpdateCounter encryptedUpdateCounter() {
+        return encryptedUpdateCounter;
     }
 
     public byte[] serialize() {
@@ -71,19 +67,19 @@ public final class State implements Serializable {
         }
         State state = (State) o;
         return Objects.equals(searchCounter, state.searchCounter) &&
-                Objects.equals(updateCounter, state.updateCounter);
+                Objects.equals(encryptedUpdateCounter, state.encryptedUpdateCounter);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(searchCounter, updateCounter);
+        return Objects.hash(searchCounter, encryptedUpdateCounter);
     }
 
     @Override
     public String toString() {
         return "State[" +
                 "searchCounter=" + searchCounter +
-                ", updateCounter=" + updateCounter +
+                ", encryptedUpdateCounter=" + encryptedUpdateCounter +
                 ']';
     }
 }

@@ -13,6 +13,8 @@ import javax.crypto.SecretKey;
 
 import sse.crypto.Prf;
 import sse.crypto.TupleEncryption;
+import sse.crypto.UpdateCounterEncryption;
+import sse.domain.EncryptedUpdateCounter;
 import sse.domain.EncryptedUpdateTuple;
 import sse.domain.IndexAddress;
 import sse.domain.KeywordToken;
@@ -46,8 +48,8 @@ public final class UpdateTokenService {
         }
     }
 
-    public UpdateToken generateUpdateToken(SecretKey tokenGenKey, State state, String keyword,
-                                           EncryptedUpdateTuple encryptedTuple) {
+    public UpdateToken generateUpdateToken(SecretKey tokenGenKey, SecretKey updateCounterKey,
+                                           State state, String keyword, EncryptedUpdateTuple encryptedTuple) {
         if (keyword == null || keyword.isEmpty() || encryptedTuple == null) {
             throw new IllegalArgumentException("keyword, encryptedTuple cannot be null or empty");
         }
@@ -56,15 +58,30 @@ public final class UpdateTokenService {
         KeywordToken keywordToken = new KeywordToken(keywordTokenBytes);
 
         int searchCount = state.searchCounter().getOrDefault(keywordToken, 0);
-        int updateCount = state.updateCounter().getOrDefault(keywordToken, 0);
+        EncryptedUpdateCounter encryptedUpdateCounter = state.encryptedUpdateCounter();
+        Map<KeywordToken, Integer> updateCounter;
+        try {
+            updateCounter = UpdateCounterEncryption.decryptUpdateCounter(updateCounterKey, encryptedUpdateCounter);
+        } catch (Exception e) {
+            throw new RuntimeException("Error decrypting update counter", e);
+        }
+        int updateCount = updateCounter.getOrDefault(keywordToken, 0);
 
         byte[] epochSearchKeyBytes = Prf.prf(tokenGenKey, keyword + ":" + searchCount);
 
         IndexAddress address = new IndexAddress(Prf.prf(epochSearchKeyBytes, updateCount + 1));
-        Map<KeywordToken, Integer> updateCounter = new HashMap<>(state.updateCounter());
         updateCounter.put(keywordToken, updateCount + 1);
-        // TODO: Cifrar o updateCounter
+        EncryptedUpdateCounter updatedEncryptedUpdateCounter;
+        try {
+            updatedEncryptedUpdateCounter = UpdateCounterEncryption.encryptUpdateCounter(
+                    updateCounterKey,
+                    UpdateCounterEncryption.generateIv(),
+                    updateCounter
+            );
+        } catch (Exception e) {
+            throw new RuntimeException("Error encrypting update counter", e);
+        }
 
-        return new UpdateToken(address, encryptedTuple, updateCounter);
+        return new UpdateToken(address, encryptedTuple, updatedEncryptedUpdateCounter);
     }
 }

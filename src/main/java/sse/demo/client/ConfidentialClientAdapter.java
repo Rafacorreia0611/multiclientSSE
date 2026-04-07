@@ -10,6 +10,7 @@ import java.io.ObjectOutputStream;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,9 +21,12 @@ import javax.crypto.spec.SecretKeySpec;
 
 import confidential.client.ConfidentialServiceProxy;
 import confidential.client.Response;
+import sse.crypto.UpdateCounterEncryption;
 import sse.demo.messages.RequestType;
 import sse.demo.messages.ResponseStatus;
+import sse.domain.EncryptedUpdateCounter;
 import sse.domain.EncryptedUpdateTuple;
+import sse.domain.KeywordToken;
 import sse.domain.SearchToken;
 import sse.domain.State;
 import sse.domain.UpdateToken;
@@ -44,7 +48,47 @@ public final class ConfidentialClientAdapter {
         service.close();
     }
 
-    public void initializeTokenGenKey() {
+    public void initializeState() {
+        byte[] tokenGenKey = generateTokenGenKey().getEncoded();
+        SecretKey updateCounterKey = UpdateCounterEncryption.generateRandomKey();
+
+        Map<KeywordToken, Integer> emptyUpdateCounter = new HashMap<>();
+        EncryptedUpdateCounter encryptedUpdateCounter;
+        try {
+            encryptedUpdateCounter = UpdateCounterEncryption.encryptUpdateCounter(
+                    updateCounterKey,
+                    UpdateCounterEncryption.generateIv(),
+                    emptyUpdateCounter
+            );
+        } catch (Exception e) {
+            throw new RuntimeException("Error encrypting initial update counter", e);
+        }
+
+        byte[] requestData = serialize(RequestType.INIT_STATE, encryptedUpdateCounter.serialize());
+        try {
+            Response response = service.invokeOrdered(
+                    requestData,
+                    new byte[][] {
+                            tokenGenKey,
+                            updateCounterKey.getEncoded()
+                    }
+            );
+            byte[] plainResponse = response.getPainData();
+            if (plainResponse == null || plainResponse.length == 0) {
+                throw new RuntimeException("Response status missing from server");
+            }
+            ResponseStatus responseStatus = ResponseStatus.getResponseStatus(Byte.toUnsignedInt(plainResponse[0]));
+            if (responseStatus == ResponseStatus.OK) {
+                System.out.println("State initialized.");
+            } else {
+                System.out.println("State was already initialized.");
+            }
+        } catch (SecretSharingException e) {
+            throw new RuntimeException("Error invoking state initialization", e);
+        }
+    }
+
+    private SecretKey generateTokenGenKey() {
         KeyGenerator keyGen;
         try {
             keyGen = KeyGenerator.getInstance("HmacSHA256");
@@ -52,24 +96,7 @@ public final class ConfidentialClientAdapter {
             throw new RuntimeException("HmacSHA256 algorithm not available for token generation key", e);
         }
         keyGen.init(256);
-        byte[] tokenGenKey = keyGen.generateKey().getEncoded();
-
-        byte[] requestData = serialize(RequestType.INIT_TOKEN_GEN_KEY, null);
-        try {
-            Response response = service.invokeOrdered(requestData, tokenGenKey);
-            byte[] plainResponse = response.getPainData();
-            if (plainResponse == null || plainResponse.length == 0) {
-                throw new RuntimeException("Response status missing from server");
-            }
-            ResponseStatus responseStatus = ResponseStatus.getResponseStatus(Byte.toUnsignedInt(plainResponse[0]));
-            if (responseStatus == ResponseStatus.OK) {
-                System.out.println("Token generation key initialized.");
-            } else {
-                System.out.println("Token generation key was already initialized.");
-            }
-        } catch (SecretSharingException e) {
-            throw new RuntimeException("Error invoking token generation key initialization", e);
-        }
+        return keyGen.generateKey();
     }
 
     public StateRequestResult requestState(RequestType type) {
@@ -97,11 +124,12 @@ public final class ConfidentialClientAdapter {
                 if (state == null) {
                     throw new RuntimeException("State missing from response");
                 }
-                if (response.getConfidentialData() == null || response.getConfidentialData().length == 0) {
-                    throw new RuntimeException("Token generation key missing from response");
+                if (response.getConfidentialData() == null || response.getConfidentialData().length < 2) {
+                    throw new RuntimeException("State keys missing from response");
                 }
                 SecretKey tokenGenKey = new SecretKeySpec(response.getConfidentialData()[0], "HmacSHA256");
-                return new StateRequestResult(state, tokenGenKey);
+                SecretKey updateCounterKey = new SecretKeySpec(response.getConfidentialData()[1], "AES");
+                return new StateRequestResult(state, tokenGenKey, updateCounterKey);
             } catch (SecretSharingException e) {
                 throw new RuntimeException("Error invoking state operation", e);
             } catch (InterruptedException e) {
@@ -216,10 +244,12 @@ public final class ConfidentialClientAdapter {
     public static final class StateRequestResult {
         private final State state;
         private final SecretKey tokenGenKey;
+        private final SecretKey updateCounterKey;
 
-        private StateRequestResult(State state, SecretKey tokenGenKey) {
+        private StateRequestResult(State state, SecretKey tokenGenKey, SecretKey updateCounterKey) {
             this.state = state;
             this.tokenGenKey = tokenGenKey;
+            this.updateCounterKey = updateCounterKey;
         }
 
         public State state() {
@@ -229,5 +259,11 @@ public final class ConfidentialClientAdapter {
         public SecretKey tokenGenKey() {
             return tokenGenKey;
         }
+
+        public SecretKey updateCounterKey() {
+            return updateCounterKey;
+        }
     }
+
+
 }
