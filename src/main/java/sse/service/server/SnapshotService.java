@@ -15,6 +15,7 @@ public final class SnapshotService {
         return new SsePlainSnapshotData(
                 new HashMap<>(state.searchCounter()),
                 state.encryptedUpdateCounter(),
+                state.activeClientId(),
                 state.searchCache().snapshotCachedAddresses(),
                 state.searchCache().snapshotNextSearchIndex(),
                 state.invertedIndexStore().snapshot(),
@@ -42,6 +43,7 @@ public final class SnapshotService {
         }
         state.setSearchCounter(new HashMap<>(snapshotData.searchCounter()));
         state.setEncryptedUpdateCounter(snapshotData.encryptedUpdateCounter());
+        state.setActiveClientId(snapshotData.activeClientId());
         state.searchCache().restore(snapshotData.dbCache(), snapshotData.nextSearchIndex());
         state.invertedIndexStore().restore(snapshotData.invertedIndex());
         state.keyShareStore().restoreUpdateTupleShares(updateTupleShares);

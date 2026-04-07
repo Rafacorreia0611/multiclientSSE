@@ -17,14 +17,12 @@ import sse.domain.SearchToken;
 import sse.domain.State;
 import sse.domain.UpdateToken;
 import sse.facade.SseServerFacade;
-import sse.snapshot.ServerSnapshotData;
 import sse.snapshot.SsePlainSnapshotData;
 import vss.secretsharing.VerifiableShare;
 
 public final class SseServerHandler {
 
     private final SseServerFacade sseServerFacade;
-    private int activeClientId = -1;
 
     public SseServerHandler() {
         this.sseServerFacade = new SseServerFacade();
@@ -37,6 +35,7 @@ public final class SseServerHandler {
     }
 
     public ConfidentialMessage handleSearch(int clientId, SearchToken searchToken) {
+        int activeClientId = sseServerFacade.getActiveClientId();
         if (activeClientId == -1) {
             return statusMessage(ResponseStatus.RETRY);
         } else if (activeClientId != clientId) {
@@ -58,11 +57,12 @@ public final class SseServerHandler {
             return new ConfidentialMessage(plainResponse,
                     updateTupleShares.toArray(new VerifiableShare[updateTupleShares.size()]));
         } finally {
-            activeClientId = -1;
+            sseServerFacade.clearActiveClientId();
         }
     }
 
     public ConfidentialMessage handleState(int clientId) {
+        int activeClientId = sseServerFacade.getActiveClientId();
         if (activeClientId != -1 && activeClientId != clientId) {
             return statusMessage(ResponseStatus.BUSY);
         }
@@ -74,7 +74,7 @@ public final class SseServerHandler {
         VerifiableShare tokenGenKeyShare = sseServerFacade.getTokenGenKey();
         VerifiableShare updateCounterKeyShare = sseServerFacade.getUpdateCounterKey();
 
-        activeClientId = clientId;
+        sseServerFacade.setActiveClientId(clientId);
         byte[] plainResponse = withStatus(ResponseStatus.OK, state.serialize());
         if (tokenGenKeyShare == null || updateCounterKeyShare == null) {
             return new ConfidentialMessage(plainResponse);
@@ -84,6 +84,7 @@ public final class SseServerHandler {
     }
 
     public ConfidentialMessage handleUpdate(int clientId, UpdateToken updateToken, VerifiableShare updateTupleKeyShare) {
+        int activeClientId = sseServerFacade.getActiveClientId();
         if (activeClientId == -1) {
             return statusMessage(ResponseStatus.RETRY);
         } else if (activeClientId != clientId) {
@@ -96,13 +97,13 @@ public final class SseServerHandler {
             sseServerFacade.updateQuery(updateToken, updateTupleKeyShare);
             return statusMessage(ResponseStatus.OK);
         } finally {
-            activeClientId = -1;
+            sseServerFacade.clearActiveClientId();
         }
     }
 
     public ConfidentialSnapshot getConfidentialSnapshot() {
         SsePlainSnapshotData sseSnapshotData = sseServerFacade.getPlainSnapshotData();
-        byte[] plainData = new ServerSnapshotData(sseSnapshotData, activeClientId).serialize();
+        byte[] plainData = sseSnapshotData.serialize();
         VerifiableShare[] shares = sseServerFacade.getSnapshotShares(
                 sseSnapshotData.updateTupleShareOrder(),
                 sseSnapshotData.hasTokenGenKeyShare(),
@@ -112,14 +113,13 @@ public final class SseServerHandler {
     }
 
     public void installConfidentialSnapshot(ConfidentialSnapshot cs) {
-        ServerSnapshotData snapshot = ServerSnapshotData.deserialize(cs.getPlainData());
+        SsePlainSnapshotData snapshot = SsePlainSnapshotData.deserialize(cs.getPlainData());
         sseServerFacade.installSnapshot(
-                snapshot.sseSnapshotData(),
+                snapshot,
                 snapshot.tokenGenKeyShare(cs.getShares()),
                 snapshot.updateCounterKeyShare(cs.getShares()),
                 snapshot.updateTupleShares(cs.getShares())
         );
-        activeClientId = snapshot.activeClientId();
     }
 
     private ConfidentialMessage statusMessage(ResponseStatus status) {

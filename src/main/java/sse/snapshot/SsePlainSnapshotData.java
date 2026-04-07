@@ -1,6 +1,14 @@
 package sse.snapshot;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.ObjectInput;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutput;
+import java.io.ObjectOutputStream;
 import java.io.Serializable;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -9,10 +17,12 @@ import sse.domain.EncryptedUpdateCounter;
 import sse.domain.EncryptedUpdateTuple;
 import sse.domain.IndexAddress;
 import sse.domain.KeywordToken;
+import vss.secretsharing.VerifiableShare;
 
 public final class SsePlainSnapshotData implements Serializable {
     private final Map<KeywordToken, Integer> searchCounter;
     private final EncryptedUpdateCounter encryptedUpdateCounter;
+    private final int activeClientId;
     private final Map<KeywordToken, List<IndexAddress>> dbCache;
     private final Map<KeywordToken, Integer> nextSearchIndex;
     private final Map<IndexAddress, EncryptedUpdateTuple> invertedIndex;
@@ -22,6 +32,7 @@ public final class SsePlainSnapshotData implements Serializable {
 
     public SsePlainSnapshotData(Map<KeywordToken, Integer> searchCounter,
                                 EncryptedUpdateCounter encryptedUpdateCounter,
+                                int activeClientId,
                                 Map<KeywordToken, List<IndexAddress>> dbCache,
                                 Map<KeywordToken, Integer> nextSearchIndex,
                                 Map<IndexAddress, EncryptedUpdateTuple> invertedIndex,
@@ -30,6 +41,7 @@ public final class SsePlainSnapshotData implements Serializable {
                                 boolean hasUpdateCounterKeyShare) {
         this.searchCounter = searchCounter;
         this.encryptedUpdateCounter = encryptedUpdateCounter;
+        this.activeClientId = activeClientId;
         this.dbCache = dbCache;
         this.nextSearchIndex = nextSearchIndex;
         this.invertedIndex = invertedIndex;
@@ -44,6 +56,10 @@ public final class SsePlainSnapshotData implements Serializable {
 
     public EncryptedUpdateCounter encryptedUpdateCounter() {
         return encryptedUpdateCounter;
+    }
+
+    public int activeClientId() {
+        return activeClientId;
     }
 
     public Map<KeywordToken, List<IndexAddress>> dbCache() {
@@ -70,6 +86,71 @@ public final class SsePlainSnapshotData implements Serializable {
         return hasUpdateCounterKeyShare;
     }
 
+    public byte[] serialize() {
+        try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
+             ObjectOutput out = new ObjectOutputStream(bos)) {
+            out.writeObject(this);
+            out.flush();
+            bos.flush();
+            return bos.toByteArray();
+        } catch (IOException e) {
+            throw new RuntimeException("Error serializing snapshot", e);
+        }
+    }
+
+    public static SsePlainSnapshotData deserialize(byte[] plainData) {
+        try (ByteArrayInputStream bis = new ByteArrayInputStream(plainData);
+             ObjectInput in = new ObjectInputStream(bis)) {
+            return (SsePlainSnapshotData) in.readObject();
+        } catch (IOException e) {
+            throw new RuntimeException("Error deserializing snapshot", e);
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException("Error deserializing snapshot", e);
+        }
+    }
+
+    public VerifiableShare tokenGenKeyShare(VerifiableShare[] shares) {
+        if (!hasTokenGenKeyShare) {
+            return null;
+        }
+        if (shares == null || shares.length == 0) {
+            throw new IllegalStateException("Snapshot is missing token generation key share");
+        }
+        return shares[0];
+    }
+
+    public VerifiableShare updateCounterKeyShare(VerifiableShare[] shares) {
+        if (!hasUpdateCounterKeyShare) {
+            return null;
+        }
+        int index = hasTokenGenKeyShare ? 1 : 0;
+        if (shares == null || index >= shares.length) {
+            throw new IllegalStateException("Snapshot is missing update counter key share");
+        }
+        return shares[index];
+    }
+
+    public Map<IndexAddress, VerifiableShare> updateTupleShares(VerifiableShare[] shares) {
+        int index = 0;
+        if (hasTokenGenKeyShare) {
+            index++;
+        }
+        if (hasUpdateCounterKeyShare) {
+            index++;
+        }
+        Map<IndexAddress, VerifiableShare> result = new HashMap<IndexAddress, VerifiableShare>();
+        for (IndexAddress address : updateTupleShareOrder) {
+            if (shares == null || index >= shares.length) {
+                throw new IllegalStateException("Snapshot is missing update tuple shares");
+            }
+            result.put(address, shares[index++]);
+        }
+        if (shares != null && index != shares.length) {
+            throw new IllegalStateException("Snapshot contains unexpected extra shares");
+        }
+        return result;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -79,7 +160,8 @@ public final class SsePlainSnapshotData implements Serializable {
             return false;
         }
         SsePlainSnapshotData that = (SsePlainSnapshotData) o;
-        return hasTokenGenKeyShare == that.hasTokenGenKeyShare &&
+        return activeClientId == that.activeClientId &&
+                hasTokenGenKeyShare == that.hasTokenGenKeyShare &&
                 hasUpdateCounterKeyShare == that.hasUpdateCounterKeyShare &&
                 Objects.equals(searchCounter, that.searchCounter) &&
                 Objects.equals(encryptedUpdateCounter, that.encryptedUpdateCounter) &&
@@ -91,7 +173,7 @@ public final class SsePlainSnapshotData implements Serializable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(searchCounter, encryptedUpdateCounter, dbCache, nextSearchIndex,
+        return Objects.hash(searchCounter, encryptedUpdateCounter, activeClientId, dbCache, nextSearchIndex,
                 invertedIndex, updateTupleShareOrder, hasTokenGenKeyShare, hasUpdateCounterKeyShare);
     }
 
@@ -100,6 +182,7 @@ public final class SsePlainSnapshotData implements Serializable {
         return "SsePlainSnapshotData[" +
                 "searchCounter=" + searchCounter +
                 ", encryptedUpdateCounter=" + encryptedUpdateCounter +
+                ", activeClientId=" + activeClientId +
                 ", dbCache=" + dbCache +
                 ", nextSearchIndex=" + nextSearchIndex +
                 ", invertedIndex=" + invertedIndex +

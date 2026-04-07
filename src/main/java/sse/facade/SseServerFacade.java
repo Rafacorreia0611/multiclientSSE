@@ -57,6 +57,18 @@ public final class SseServerFacade {
         return state.keyShareStore().updateCounterKeyShare();
     }
 
+    public int getActiveClientId() {
+        return state.activeClientId();
+    }
+
+    public void setActiveClientId(int clientId) {
+        state.setActiveClientId(clientId);
+    }
+
+    public void clearActiveClientId() {
+        state.setActiveClientId(-1);
+    }
+
     public Boolean initializeState(EncryptedUpdateCounter encryptedUpdateCounter,
                                    VerifiableShare tokenGenKeyShare,
                                    VerifiableShare updateCounterKeyShare) {
