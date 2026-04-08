@@ -1,6 +1,6 @@
 package sse.state;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -14,8 +14,8 @@ public final class SearchCache {
     private Map<KeywordToken, Integer> nextSearchIndexByKeyword;
 
     public SearchCache() {
-        this.cachedAddressesByKeyword = new HashMap<>();
-        this.nextSearchIndexByKeyword = new HashMap<>();
+        this.cachedAddressesByKeyword = new LinkedHashMap<>();
+        this.nextSearchIndexByKeyword = new LinkedHashMap<>();
     }
 
     public List<IndexAddress> cachedAddressesFor(KeywordToken keywordToken) {
@@ -37,7 +37,7 @@ public final class SearchCache {
     }
 
     public Map<KeywordToken, List<IndexAddress>> snapshotCachedAddresses() {
-        Map<KeywordToken, List<IndexAddress>> copy = new HashMap<>(cachedAddressesByKeyword.size());
+        Map<KeywordToken, List<IndexAddress>> copy = new LinkedHashMap<>(cachedAddressesByKeyword.size());
         for (Map.Entry<KeywordToken, List<IndexAddress>> entry : cachedAddressesByKeyword.entrySet()) {
             copy.put(entry.getKey(), new LinkedList<>(entry.getValue()));
         }
@@ -45,15 +45,15 @@ public final class SearchCache {
     }
 
     public Map<KeywordToken, Integer> snapshotNextSearchIndex() {
-        return new HashMap<>(nextSearchIndexByKeyword);
+        return new LinkedHashMap<>(nextSearchIndexByKeyword);
     }
 
     public void restore(Map<KeywordToken, List<IndexAddress>> cachedAddresses,
                         Map<KeywordToken, Integer> nextSearchIndex) {
-        this.cachedAddressesByKeyword = new HashMap<>(cachedAddresses.size());
+        this.cachedAddressesByKeyword = new LinkedHashMap<>(cachedAddresses.size());
         for (Map.Entry<KeywordToken, List<IndexAddress>> entry : cachedAddresses.entrySet()) {
             this.cachedAddressesByKeyword.put(entry.getKey(), new LinkedList<>(entry.getValue()));
         }
-        this.nextSearchIndexByKeyword = new HashMap<>(nextSearchIndex);
+        this.nextSearchIndexByKeyword = new LinkedHashMap<>(nextSearchIndex);
     }
 }

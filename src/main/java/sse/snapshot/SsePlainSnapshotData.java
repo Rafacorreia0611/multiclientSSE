@@ -8,7 +8,7 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutput;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -45,9 +45,9 @@ public final class SsePlainSnapshotData implements Serializable {
         this.encryptedUpdateCounter = encryptedUpdateCounter;
         this.activeClientId = activeClientId;
         this.blockedStateRequestsWhileActive = blockedStateRequestsWhileActive;
-        this.dbCache = dbCache;
-        this.nextSearchIndex = nextSearchIndex;
-        this.invertedIndex = invertedIndex;
+        this.dbCache = new LinkedHashMap<>(dbCache);
+        this.nextSearchIndex = new LinkedHashMap<>(nextSearchIndex);
+        this.invertedIndex = new LinkedHashMap<>(invertedIndex);
         this.updateTupleShareOrder = updateTupleShareOrder;
         this.hasTokenGenKeyShare = hasTokenGenKeyShare;
         this.hasUpdateCounterKeyShare = hasUpdateCounterKeyShare;
@@ -145,7 +145,7 @@ public final class SsePlainSnapshotData implements Serializable {
         if (hasUpdateCounterKeyShare) {
             index++;
         }
-        Map<IndexAddress, VerifiableShare> result = new HashMap<IndexAddress, VerifiableShare>();
+        Map<IndexAddress, VerifiableShare> result = new LinkedHashMap<IndexAddress, VerifiableShare>();
         for (IndexAddress address : updateTupleShareOrder) {
             if (shares == null || index >= shares.length) {
                 throw new IllegalStateException("Snapshot is missing update tuple shares");

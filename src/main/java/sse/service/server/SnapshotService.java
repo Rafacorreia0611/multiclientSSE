@@ -1,6 +1,6 @@
 package sse.service.server;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -13,7 +13,7 @@ public final class SnapshotService {
 
     public SsePlainSnapshotData getPlainSnapshotData(SseServerState state) {
         return new SsePlainSnapshotData(
-                new HashMap<>(state.searchCounter()),
+                new LinkedHashMap<>(state.searchCounter()),
                 state.encryptedUpdateCounter(),
                 state.activeClientId(),
                 state.blockedStateRequestsWhileActive(),
@@ -42,7 +42,7 @@ public final class SnapshotService {
         if (snapshotData == null) {
             throw new IllegalArgumentException("snapshotData cannot be null");
         }
-        state.setSearchCounter(new HashMap<>(snapshotData.searchCounter()));
+        state.setSearchCounter(new LinkedHashMap<>(snapshotData.searchCounter()));
         state.setEncryptedUpdateCounter(snapshotData.encryptedUpdateCounter());
         state.setActiveClientId(snapshotData.activeClientId());
         state.setBlockedStateRequestsWhileActive(snapshotData.blockedStateRequestsWhileActive());

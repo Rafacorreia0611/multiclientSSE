@@ -1,7 +1,7 @@
 package sse.state;
 
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -15,7 +15,7 @@ public final class KeyShareStore {
     private VerifiableShare updateCounterKeyShare;
 
     public KeyShareStore() {
-        this.updateTupleShares = new HashMap<>();
+        this.updateTupleShares = new LinkedHashMap<>();
         this.tokenGenKeyShare = null;
         this.updateCounterKeyShare = null;
     }
@@ -88,6 +88,6 @@ public final class KeyShareStore {
     }
 
     public void restoreUpdateTupleShares(Map<IndexAddress, VerifiableShare> shares) {
-        this.updateTupleShares = new HashMap<>(shares);
+        this.updateTupleShares = new LinkedHashMap<>(shares);
     }
 }

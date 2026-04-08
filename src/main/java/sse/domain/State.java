@@ -9,7 +9,7 @@ import java.io.ObjectOutput;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -21,7 +21,7 @@ public final class State implements Serializable {
         if (searchCounter == null || encryptedUpdateCounter == null) {
             throw new IllegalArgumentException("searchCounter and encryptedUpdateCounter cannot be null");
         }
-        this.searchCounter = Collections.unmodifiableMap(new HashMap<>(searchCounter));
+        this.searchCounter = Collections.unmodifiableMap(new LinkedHashMap<>(searchCounter));
         this.encryptedUpdateCounter = encryptedUpdateCounter;
     }
 

@@ -1,6 +1,6 @@
 package sse.state;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import sse.domain.EncryptedUpdateTuple;
@@ -11,7 +11,7 @@ public final class InvertedIndexStore {
     private Map<IndexAddress, EncryptedUpdateTuple> entries;
 
     public InvertedIndexStore() {
-        this.entries = new HashMap<>();
+        this.entries = new LinkedHashMap<>();
     }
 
     public boolean contains(IndexAddress address) {
@@ -27,10 +27,10 @@ public final class InvertedIndexStore {
     }
 
     public Map<IndexAddress, EncryptedUpdateTuple> snapshot() {
-        return new HashMap<>(entries);
+        return new LinkedHashMap<>(entries);
     }
 
     public void restore(Map<IndexAddress, EncryptedUpdateTuple> snapshot) {
-        this.entries = new HashMap<>(snapshot);
+        this.entries = new LinkedHashMap<>(snapshot);
     }
 }

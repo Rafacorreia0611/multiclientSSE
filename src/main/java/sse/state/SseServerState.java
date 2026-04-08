@@ -1,6 +1,6 @@
 package sse.state;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import sse.domain.EncryptedUpdateCounter;
@@ -17,7 +17,7 @@ public final class SseServerState {
     private final KeyShareStore keyShareStore;
 
     public SseServerState() {
-        this.searchCounter = new HashMap<>();
+        this.searchCounter = new LinkedHashMap<>();
         this.encryptedUpdateCounter = null;
         this.activeClientId = -1;
         this.blockedStateRequestsWhileActive = 0;
@@ -31,7 +31,7 @@ public final class SseServerState {
     }
 
     public void setSearchCounter(Map<KeywordToken, Integer> searchCounter) {
-        this.searchCounter = searchCounter;
+        this.searchCounter = new LinkedHashMap<>(searchCounter);
     }
 
     public EncryptedUpdateCounter encryptedUpdateCounter() {
