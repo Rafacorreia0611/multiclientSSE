@@ -61,12 +61,20 @@ public final class SseServerFacade {
         return state.activeClientId();
     }
 
-    public void setActiveClientId(int clientId) {
+    public void activateClient(int clientId) {
         state.setActiveClientId(clientId);
+        state.setBlockedStateRequestsWhileActive(0);
     }
 
     public void clearActiveClientId() {
         state.setActiveClientId(-1);
+        state.setBlockedStateRequestsWhileActive(0);
+    }
+
+    public int incrementBlockedStateRequestsWhileActive() {
+        int nextValue = state.blockedStateRequestsWhileActive() + 1;
+        state.setBlockedStateRequestsWhileActive(nextValue);
+        return nextValue;
     }
 
     public Boolean initializeState(EncryptedUpdateCounter encryptedUpdateCounter,

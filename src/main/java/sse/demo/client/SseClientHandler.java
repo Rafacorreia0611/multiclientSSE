@@ -71,6 +71,4 @@ public final class SseClientHandler {
     public void close() {
         adapter.close();
     }
-
-    
 }

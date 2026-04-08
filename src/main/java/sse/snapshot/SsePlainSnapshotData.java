@@ -23,6 +23,7 @@ public final class SsePlainSnapshotData implements Serializable {
     private final Map<KeywordToken, Integer> searchCounter;
     private final EncryptedUpdateCounter encryptedUpdateCounter;
     private final int activeClientId;
+    private final int blockedStateRequestsWhileActive;
     private final Map<KeywordToken, List<IndexAddress>> dbCache;
     private final Map<KeywordToken, Integer> nextSearchIndex;
     private final Map<IndexAddress, EncryptedUpdateTuple> invertedIndex;
@@ -33,6 +34,7 @@ public final class SsePlainSnapshotData implements Serializable {
     public SsePlainSnapshotData(Map<KeywordToken, Integer> searchCounter,
                                 EncryptedUpdateCounter encryptedUpdateCounter,
                                 int activeClientId,
+                                int blockedStateRequestsWhileActive,
                                 Map<KeywordToken, List<IndexAddress>> dbCache,
                                 Map<KeywordToken, Integer> nextSearchIndex,
                                 Map<IndexAddress, EncryptedUpdateTuple> invertedIndex,
@@ -42,6 +44,7 @@ public final class SsePlainSnapshotData implements Serializable {
         this.searchCounter = searchCounter;
         this.encryptedUpdateCounter = encryptedUpdateCounter;
         this.activeClientId = activeClientId;
+        this.blockedStateRequestsWhileActive = blockedStateRequestsWhileActive;
         this.dbCache = dbCache;
         this.nextSearchIndex = nextSearchIndex;
         this.invertedIndex = invertedIndex;
@@ -60,6 +63,10 @@ public final class SsePlainSnapshotData implements Serializable {
 
     public int activeClientId() {
         return activeClientId;
+    }
+
+    public int blockedStateRequestsWhileActive() {
+        return blockedStateRequestsWhileActive;
     }
 
     public Map<KeywordToken, List<IndexAddress>> dbCache() {
@@ -161,6 +168,7 @@ public final class SsePlainSnapshotData implements Serializable {
         }
         SsePlainSnapshotData that = (SsePlainSnapshotData) o;
         return activeClientId == that.activeClientId &&
+                blockedStateRequestsWhileActive == that.blockedStateRequestsWhileActive &&
                 hasTokenGenKeyShare == that.hasTokenGenKeyShare &&
                 hasUpdateCounterKeyShare == that.hasUpdateCounterKeyShare &&
                 Objects.equals(searchCounter, that.searchCounter) &&
@@ -173,7 +181,8 @@ public final class SsePlainSnapshotData implements Serializable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(searchCounter, encryptedUpdateCounter, activeClientId, dbCache, nextSearchIndex,
+        return Objects.hash(searchCounter, encryptedUpdateCounter, activeClientId, blockedStateRequestsWhileActive,
+                dbCache, nextSearchIndex,
                 invertedIndex, updateTupleShareOrder, hasTokenGenKeyShare, hasUpdateCounterKeyShare);
     }
 
@@ -183,6 +192,7 @@ public final class SsePlainSnapshotData implements Serializable {
                 "searchCounter=" + searchCounter +
                 ", encryptedUpdateCounter=" + encryptedUpdateCounter +
                 ", activeClientId=" + activeClientId +
+                ", blockedStateRequestsWhileActive=" + blockedStateRequestsWhileActive +
                 ", dbCache=" + dbCache +
                 ", nextSearchIndex=" + nextSearchIndex +
                 ", invertedIndex=" + invertedIndex +

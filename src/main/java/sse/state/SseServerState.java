@@ -11,6 +11,7 @@ public final class SseServerState {
     private Map<KeywordToken, Integer> searchCounter;
     private EncryptedUpdateCounter encryptedUpdateCounter;
     private int activeClientId;
+    private int blockedStateRequestsWhileActive;
     private final SearchCache searchCache;
     private final InvertedIndexStore invertedIndexStore;
     private final KeyShareStore keyShareStore;
@@ -19,6 +20,7 @@ public final class SseServerState {
         this.searchCounter = new HashMap<>();
         this.encryptedUpdateCounter = null;
         this.activeClientId = -1;
+        this.blockedStateRequestsWhileActive = 0;
         this.searchCache = new SearchCache();
         this.invertedIndexStore = new InvertedIndexStore();
         this.keyShareStore = new KeyShareStore();
@@ -46,6 +48,14 @@ public final class SseServerState {
 
     public void setActiveClientId(int activeClientId) {
         this.activeClientId = activeClientId;
+    }
+
+    public int blockedStateRequestsWhileActive() {
+        return blockedStateRequestsWhileActive;
+    }
+
+    public void setBlockedStateRequestsWhileActive(int blockedStateRequestsWhileActive) {
+        this.blockedStateRequestsWhileActive = blockedStateRequestsWhileActive;
     }
 
     public boolean isInitialized() {

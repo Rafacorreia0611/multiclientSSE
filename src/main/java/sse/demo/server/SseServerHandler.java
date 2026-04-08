@@ -22,6 +22,8 @@ import vss.secretsharing.VerifiableShare;
 
 public final class SseServerHandler {
 
+    private static final int MAX_BLOCKED_STATE_REQUESTS = 3;
+
     private final SseServerFacade sseServerFacade;
 
     public SseServerHandler() {
@@ -64,7 +66,13 @@ public final class SseServerHandler {
     public ConfidentialMessage handleState(int clientId) {
         int activeClientId = sseServerFacade.getActiveClientId();
         if (activeClientId != -1 && activeClientId != clientId) {
-            return statusMessage(ResponseStatus.BUSY);
+            int blockedStateRequests = sseServerFacade.incrementBlockedStateRequestsWhileActive();
+            if (blockedStateRequests >= MAX_BLOCKED_STATE_REQUESTS) {
+                System.out.println("Expiring active client " + activeClientId
+                        + " after " + blockedStateRequests + " blocked STATE requests.");
+            } else {
+                return statusMessage(ResponseStatus.BUSY);
+            }
         }
         if (!sseServerFacade.isInitialized()) {
             return statusMessage(ResponseStatus.FAILED);
@@ -74,7 +82,7 @@ public final class SseServerHandler {
         VerifiableShare tokenGenKeyShare = sseServerFacade.getTokenGenKey();
         VerifiableShare updateCounterKeyShare = sseServerFacade.getUpdateCounterKey();
 
-        sseServerFacade.setActiveClientId(clientId);
+        sseServerFacade.activateClient(clientId);
         byte[] plainResponse = withStatus(ResponseStatus.OK, state.serialize());
         if (tokenGenKeyShare == null || updateCounterKeyShare == null) {
             return new ConfidentialMessage(plainResponse);
