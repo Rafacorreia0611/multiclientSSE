@@ -59,10 +59,23 @@ After preparing the local deployment with `./gradlew localDeploy`, start the rep
 Run the following commands in four different terminals:
 
 ```bash
-build/local/rep0$ ./smartrun.sh sse.demo.server.Server 0
-build/local/rep1$ ./smartrun.sh sse.demo.server.Server 1
-build/local/rep2$ ./smartrun.sh sse.demo.server.Server 2
-build/local/rep3$ ./smartrun.sh sse.demo.server.Server 3
+cd build/local/rep0
+./smartrun.sh sse.demo.server.Server 0
+```
+
+```bash
+cd build/local/rep1
+./smartrun.sh sse.demo.server.Server 1
+```
+
+```bash
+cd build/local/rep2
+./smartrun.sh sse.demo.server.Server 2
+```
+
+```bash
+cd build/local/rep3
+./smartrun.sh sse.demo.server.Server 3
 ```
 
 ### 2. Start the client
@@ -70,7 +83,8 @@ build/local/rep3$ ./smartrun.sh sse.demo.server.Server 3
 Once all replicas are ready, start the interactive client:
 
 ```bash
-build/local/cli0$ ./smartrun.sh sse.demo.client.Client 100
+cd build/local/cli0
+./smartrun.sh sse.demo.client.Client 100
 ```
 
 On Windows, use `run.cmd` instead of `./smartrun.sh`.
@@ -87,7 +101,7 @@ The client initializes the SSE state when it starts and then exposes a simple in
 ## Assumptions and Limitations
 
 - this is a master's thesis prototype
-- the current design allows only one active client at a time
+- clients can perform operations only one at a time
 - liveness follows an obstruction-freedom assumption
 - the protocol assumes honest clients
 - as usual in SSE, some leakage is still present, including search pattern, access pattern, and volume pattern
