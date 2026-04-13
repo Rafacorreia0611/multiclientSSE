@@ -9,3 +9,6 @@ build
 
 # Ignore Jenv settings directory
 .java-version
+
+# Ignore downloaded datasets
+datasets/raw/

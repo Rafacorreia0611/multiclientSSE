@@ -49,6 +49,54 @@ The project uses native C code for the constant commitment scheme through the [`
 1. Inside `pairing`, run `./build_relic.sh`
 2. Then run `./build.sh <path to java folder>`
 
+## Enron Dataset
+
+For SSE population tests, this repository expects the Enron dataset under `datasets/raw/enron/`.
+
+### Manual download
+
+If you want the simplest setup, download the dataset manually:
+
+1. Open the dataset page: [The Enron Email Dataset on Kaggle](https://www.kaggle.com/datasets/wcukierski/enron-email-dataset?resource=download)
+2. Download the dataset zip from the browser
+3. Extract its contents into `datasets/raw/enron/`
+4. Confirm that `datasets/raw/enron/emails.csv` exists after extraction
+
+### Automatic download with Kaggle CLI
+
+The repository also includes helper scripts under [`datasets/scripts`](/Users/rafacorreia0611/Documents/Tese/multiclientSSE/datasets/scripts):
+
+- macOS/Linux: `./datasets/scripts/download_enron_dataset.sh`
+- Windows: `datasets\scripts\download_enron_dataset.cmd`
+
+Both scripts download the Kaggle dataset `wcukierski/enron-email-dataset` into the fixed project directory `datasets/raw/enron/`, extract it there, and remove the downloaded zip file.
+
+Before using the Kaggle CLI:
+
+1. Install the CLI
+2. Sign in to Kaggle
+3. Open `https://www.kaggle.com/settings`
+4. In the `API` section, click `Generate New Token`
+5. Save the token to `~/.kaggle/access_token` on macOS/Linux or `%USERPROFILE%\.kaggle\access_token` on Windows
+
+Recommended installation options:
+
+- macOS/Linux: `python3 -m pip install --user kaggle`
+- macOS/Linux alternative: `pipx install kaggle`
+- Windows: `py -m pip install kaggle`
+- Windows alternative: `pipx install kaggle`
+
+On macOS/Linux, restrict the token file permissions with:
+
+```bash
+chmod 600 ~/.kaggle/access_token
+```
+
+The Kaggle CLI also supports:
+
+- `KAGGLE_API_TOKEN` as an environment variable
+- the legacy credentials file `~/.kaggle/kaggle.json`
+
 
 ## Running the SSE Demo
 
