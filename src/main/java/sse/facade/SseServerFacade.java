@@ -9,6 +9,7 @@ import sse.domain.IndexAddress;
 import sse.domain.SearchToken;
 import sse.domain.State;
 import sse.domain.UpdateToken;
+import sse.domain.populatedb.BulkUpdateRequest;
 import sse.snapshot.SsePlainSnapshotData;
 import sse.service.server.SearchService;
 import sse.service.server.SnapshotService;
@@ -38,6 +39,10 @@ public final class SseServerFacade {
         updateService.update(state, updateToken, updateTupleKeyShare);
     }
 
+    public void bulkUpdateQuery(BulkUpdateRequest bulkUpdateRequest, VerifiableShare[] updateTupleKeyShares) {
+        updateService.bulkUpdate(state, bulkUpdateRequest, updateTupleKeyShares);
+    }
+
     public boolean isInitialized() {
         return state.isInitialized();
     }
@@ -61,20 +66,34 @@ public final class SseServerFacade {
         return state.activeClientId();
     }
 
-    public void activateClient(int clientId) {
+    public void activateClient(int clientId, boolean setupInProgress) {
         state.setActiveClientId(clientId);
         state.setBlockedStateRequestsWhileActive(0);
+        state.setSetupInProgress(setupInProgress);
     }
 
     public void clearActiveClientId() {
         state.setActiveClientId(-1);
         state.setBlockedStateRequestsWhileActive(0);
+        state.setSetupInProgress(false);
     }
 
     public int incrementBlockedStateRequestsWhileActive() {
         int nextValue = state.blockedStateRequestsWhileActive() + 1;
         state.setBlockedStateRequestsWhileActive(nextValue);
         return nextValue;
+    }
+
+    public void resetBlockedStateRequestsWhileActive() {
+        state.setBlockedStateRequestsWhileActive(0);
+    }
+
+    public boolean isSetupInProgress() {
+        return state.setupInProgress();
+    }
+
+    public void setSetupInProgress(boolean setupInProgress) {
+        state.setSetupInProgress(setupInProgress);
     }
 
     public Boolean initializeState(EncryptedUpdateCounter encryptedUpdateCounter,

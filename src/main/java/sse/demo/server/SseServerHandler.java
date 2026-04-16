@@ -16,6 +16,7 @@ import sse.domain.EncryptedUpdateTuple;
 import sse.domain.SearchToken;
 import sse.domain.State;
 import sse.domain.UpdateToken;
+import sse.domain.populatedb.BulkUpdateRequest;
 import sse.facade.SseServerFacade;
 import sse.snapshot.SsePlainSnapshotData;
 import vss.secretsharing.VerifiableShare;
@@ -23,6 +24,7 @@ import vss.secretsharing.VerifiableShare;
 public final class SseServerHandler {
 
     private static final int MAX_BLOCKED_STATE_REQUESTS = 3;
+    private static final int MAX_BLOCKED_STATE_REQUESTS_DURING_SETUP = 20;
 
     private final SseServerFacade sseServerFacade;
 
@@ -63,13 +65,22 @@ public final class SseServerHandler {
         }
     }
 
-    public ConfidentialMessage handleState(int clientId) {
+    public ConfidentialMessage handleState(int clientId, boolean setupRequested) {
         int activeClientId = sseServerFacade.getActiveClientId();
         if (activeClientId != -1 && activeClientId != clientId) {
             int blockedStateRequests = sseServerFacade.incrementBlockedStateRequestsWhileActive();
-            if (blockedStateRequests >= MAX_BLOCKED_STATE_REQUESTS) {
-                System.out.println("Expiring active client " + activeClientId
-                        + " after " + blockedStateRequests + " blocked STATE requests.");
+            int maxBlockedStateRequests = sseServerFacade.isSetupInProgress()
+                    ? MAX_BLOCKED_STATE_REQUESTS_DURING_SETUP
+                    : MAX_BLOCKED_STATE_REQUESTS;
+            if (blockedStateRequests >= maxBlockedStateRequests) {
+                if (sseServerFacade.isSetupInProgress()) {
+                    System.out.println("Expiring PopulateDB client " + activeClientId
+                            + " after " + blockedStateRequests + " blocked STATE requests during setup.");
+                } else {
+                    System.out.println("Expiring active client " + activeClientId
+                            + " after " + blockedStateRequests + " blocked STATE requests.");
+                }
+                sseServerFacade.clearActiveClientId();
             } else {
                 return statusMessage(ResponseStatus.BUSY);
             }
@@ -82,7 +93,7 @@ public final class SseServerHandler {
         VerifiableShare tokenGenKeyShare = sseServerFacade.getTokenGenKey();
         VerifiableShare updateCounterKeyShare = sseServerFacade.getUpdateCounterKey();
 
-        sseServerFacade.activateClient(clientId);
+        sseServerFacade.activateClient(clientId, setupRequested);
         byte[] plainResponse = withStatus(ResponseStatus.OK, state.serialize());
         if (tokenGenKeyShare == null || updateCounterKeyShare == null) {
             return new ConfidentialMessage(plainResponse);
@@ -107,6 +118,55 @@ public final class SseServerHandler {
         } finally {
             sseServerFacade.clearActiveClientId();
         }
+    }
+
+    public ConfidentialMessage handleBulkUpdate(int clientId, BulkUpdateRequest bulkUpdateRequest,
+                                                VerifiableShare[] updateTupleKeyShares) {
+        int activeClientId = sseServerFacade.getActiveClientId();
+        if (activeClientId == -1) {
+            return statusMessage(ResponseStatus.RETRY);
+        } else if (activeClientId != clientId) {
+            return statusMessage(ResponseStatus.BUSY);
+        }
+
+        try {
+            if (bulkUpdateRequest == null || updateTupleKeyShares == null) {
+                return statusMessage(ResponseStatus.FAILED);
+            }
+            sseServerFacade.bulkUpdateQuery(bulkUpdateRequest, updateTupleKeyShares);
+            sseServerFacade.setSetupInProgress(true);
+            sseServerFacade.resetBlockedStateRequestsWhileActive();
+            return statusMessage(ResponseStatus.OK);
+        } catch (IllegalArgumentException e) {
+            System.err.println("Rejected bulk update from client " + clientId + ": " + e.getMessage());
+            return statusMessage(ResponseStatus.FAILED);
+        }
+    }
+
+    public ConfidentialMessage handleSetupComplete(int clientId) {
+        int activeClientId = sseServerFacade.getActiveClientId();
+        if (activeClientId == -1) {
+            return statusMessage(ResponseStatus.RETRY);
+        } else if (activeClientId != clientId) {
+            return statusMessage(ResponseStatus.BUSY);
+        }
+
+        sseServerFacade.clearActiveClientId();
+        System.out.println("PopulateDB completed by client " + clientId + ". SSE database population is ready.");
+        return statusMessage(ResponseStatus.OK);
+    }
+
+    public ConfidentialMessage handleSetupAbort(int clientId) {
+        int activeClientId = sseServerFacade.getActiveClientId();
+        if (activeClientId == -1) {
+            return statusMessage(ResponseStatus.RETRY);
+        } else if (activeClientId != clientId) {
+            return statusMessage(ResponseStatus.BUSY);
+        }
+
+        sseServerFacade.clearActiveClientId();
+        System.out.println("PopulateDB aborted by client " + clientId + ". Active setup session was cleared.");
+        return statusMessage(ResponseStatus.OK);
     }
 
     public ConfidentialSnapshot getConfidentialSnapshot() {

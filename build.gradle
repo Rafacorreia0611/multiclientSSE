@@ -50,14 +50,32 @@ ssh.settings {
 
 task localDeploy(dependsOn: installDist) {
     doLast {
-        int nServers = 4
-        int nClients = 1
+        def parsePositiveCount = { propertyName, defaultValue ->
+            def propertyValue = project.findProperty(propertyName)
+            if (propertyValue == null) {
+                return defaultValue
+            }
+
+            try {
+                int parsedValue = Integer.parseInt(propertyValue.toString())
+                if (parsedValue < 1) {
+                    throw new GradleException("Property '${propertyName}' must be greater than 0.")
+                }
+                return parsedValue
+            } catch (NumberFormatException e) {
+                throw new GradleException("Property '${propertyName}' must be a valid integer.", e)
+            }
+        }
+
+        int nServers = parsePositiveCount('servers', 4)
+        int nClients = parsePositiveCount('clients', 1)
 
         def fileSeparator = System.getProperty("file.separator")
         def src = project.buildDir.name + fileSeparator + "install" + fileSeparator + project.name
         def workingDirectory = project.buildDir.name + fileSeparator + "local" + fileSeparator
 
         println ("Deploying project into ${workingDirectory}")
+        println ("Servers: ${nServers}, clients: ${nClients}")
 
         for (i in 0..<nServers) {
             def target = workingDirectory + "rep${i}"
@@ -88,6 +106,21 @@ task remoteDeploy(dependsOn: installDist) {
             }
         }
     }
+}
+
+task processEnronDataset(type: JavaExec, dependsOn: classes) {
+    group = 'dataset'
+    description = 'Processes the Enron CSV into keyword-to-docId NDJSON output.'
+    classpath = sourceSets.main.runtimeClasspath
+    main = 'sse.dataset.enron.EnronCsvProcessor'
+
+    def inputPath = (project.findProperty('input') ?: 'datasets/raw/enron/emails.csv').toString()
+    def outputPath = (project.findProperty('output') ?: 'datasets/processed/enron/keyword_to_docids.ndjson').toString()
+    def mode = (project.findProperty('mode') ?: 'compact').toString()
+    def topK = (project.findProperty('topK') ?: '500').toString()
+    def maxDocFreqRatio = (project.findProperty('maxDocFreqRatio') ?: '0.02').toString()
+
+    args inputPath, outputPath, mode, topK, maxDocFreqRatio
 }
 
 dependencies {

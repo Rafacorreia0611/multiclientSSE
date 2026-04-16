@@ -6,6 +6,7 @@ import java.util.Map;
 import javax.crypto.SecretKey;
 
 import sse.domain.EncryptedUpdateTuple;
+import sse.domain.InitializationMaterial;
 import sse.domain.SearchToken;
 import sse.domain.State;
 import sse.domain.UpdateToken;
@@ -22,7 +23,12 @@ public final class SseClientHandler {
     }
 
     public void initializeState() {
-        adapter.initializeState();
+        InitializationMaterial initializationMaterial = sseClientFacade.generateInitialStateData();
+        if (adapter.sendInitializeStateRequest(initializationMaterial)) {
+            System.out.println("State initialized.");
+        } else {
+            System.out.println("State was already initialized.");
+        }
     }
 
     public List<String> search(String keyword) {

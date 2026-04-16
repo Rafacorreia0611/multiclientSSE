@@ -42,6 +42,14 @@ Inside the project root, you can:
 
 The `localDeploy` task creates a `build/local` directory with replica folders `rep*` and client folders `cli*`.
 
+You can also control how many replica and client folders are created:
+
+```bash
+./gradlew localDeploy -Pservers=4 -Pclients=2
+```
+
+By default, `localDeploy` creates `4` replica folders and `1` client folder.
+
 ### Native C Code
 
 The project uses native C code for the constant commitment scheme through the [`relic`](https://github.com/relic-toolkit/relic) library. If your environment requires rebuilding these components:
@@ -97,10 +105,34 @@ The Kaggle CLI also supports:
 - `KAGGLE_API_TOKEN` as an environment variable
 - the legacy credentials file `~/.kaggle/kaggle.json`
 
+### Preprocess the dataset
+
+After `datasets/raw/enron/emails.csv` is available, generate the intermediate keyword-to-document mapping with:
+
+```bash
+./gradlew processEnronDataset
+```
+
+This task:
+
+- reads `datasets/raw/enron/emails.csv`
+- uses the Enron `file` column as the document identifier
+- extracts keywords from `subject + body`
+- writes the processed output to `datasets/processed/enron/keyword_to_docids.ndjson`
+
+The preprocessing task supports the following properties:
+
+- `-Pinput`: input CSV path
+- `-Poutput`: output NDJSON path
+- `-Pmode`: `compact` or `full`
+- `-PtopK`: number of keywords kept in `compact` mode
+- `-PmaxDocFreqRatio`: upper bound on keyword document frequency in `compact` mode
+
+By default, the task runs in `compact` mode with `topK=500` and `maxDocFreqRatio=0.02`.
 
 ## Running the SSE Demo
 
-After preparing the local deployment with `./gradlew localDeploy`, start the replicas and then launch a client.
+After preparing the local deployment with `./gradlew localDeploy`, start the replicas, optionally populate the SSE database, and then launch a client.
 
 ### 1. Start the replicas
 
@@ -126,18 +158,36 @@ cd build/local/rep3
 ./smartrun.sh sse.demo.server.Server 3
 ```
 
-### 2. Start the client
+### 2. Optionally populate the SSE database
 
-Once all replicas are ready, start the interactive client:
+If you want to preload the SSE state from an Enron NDJSON file, start a second client folder and run `PopulateDB`:
 
 ```bash
 cd build/local/cli0
+./smartrun.sh sse.populatedb.PopulateDB 101 datasets/processed/enron/keyword_to_docids.ndjson
+```
+
+The `PopulateDB` command accepts:
+
+- an optional client identifier
+- an optional NDJSON input path
+
+For local tests, it is often useful to prepare two client folders with `./gradlew localDeploy -Pclients=2`, use one for `PopulateDB`, and a different one for the interactive client.
+
+### 3. Start the client
+
+Once all replicas are ready, and after population if you are using it, start the interactive client:
+
+```bash
+cd build/local/cli1
 ./smartrun.sh sse.demo.client.Client 100
 ```
 
+If you prepared only one client folder, you can still use `cli0` for the interactive client.
+
 On Windows, use `run.cmd` instead of `./smartrun.sh`.
 
-### 3. Use the interactive menu
+### 4. Use the interactive menu
 
 The client initializes the SSE state when it starts and then exposes a simple interactive menu with:
 

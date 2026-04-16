@@ -10,5 +10,9 @@ build
 # Ignore Jenv settings directory
 .java-version
 
-# Ignore downloaded datasets
+# Ignore downloaded datasets and processed datasets
 datasets/raw/
+datasets/processed/
+
+# Ignore bin directory for compiled classes
+bin

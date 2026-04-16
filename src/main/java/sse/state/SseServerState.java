@@ -12,6 +12,7 @@ public final class SseServerState {
     private EncryptedUpdateCounter encryptedUpdateCounter;
     private int activeClientId;
     private int blockedStateRequestsWhileActive;
+    private boolean setupInProgress;
     private final SearchCache searchCache;
     private final InvertedIndexStore invertedIndexStore;
     private final KeyShareStore keyShareStore;
@@ -21,6 +22,7 @@ public final class SseServerState {
         this.encryptedUpdateCounter = null;
         this.activeClientId = -1;
         this.blockedStateRequestsWhileActive = 0;
+        this.setupInProgress = false;
         this.searchCache = new SearchCache();
         this.invertedIndexStore = new InvertedIndexStore();
         this.keyShareStore = new KeyShareStore();
@@ -56,6 +58,14 @@ public final class SseServerState {
 
     public void setBlockedStateRequestsWhileActive(int blockedStateRequestsWhileActive) {
         this.blockedStateRequestsWhileActive = blockedStateRequestsWhileActive;
+    }
+
+    public boolean setupInProgress() {
+        return setupInProgress;
+    }
+
+    public void setSetupInProgress(boolean setupInProgress) {
+        this.setupInProgress = setupInProgress;
     }
 
     public boolean isInitialized() {

@@ -7,29 +7,25 @@ import java.io.ObjectInput;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutput;
 import java.io.ObjectOutputStream;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
 import confidential.client.ConfidentialServiceProxy;
 import confidential.client.Response;
-import sse.crypto.UpdateCounterEncryption;
 import sse.demo.messages.RequestType;
 import sse.demo.messages.ResponseStatus;
-import sse.domain.EncryptedUpdateCounter;
 import sse.domain.EncryptedUpdateTuple;
-import sse.domain.KeywordToken;
+import sse.domain.InitializationMaterial;
 import sse.domain.SearchToken;
 import sse.domain.State;
 import sse.domain.UpdateToken;
+import sse.domain.populatedb.BulkUpdateRequest;
 import vss.facade.SecretSharingException;
 
 public final class ConfidentialClientAdapter {
@@ -48,62 +44,34 @@ public final class ConfidentialClientAdapter {
         service.close();
     }
 
-    public void initializeState() {
-        byte[] tokenGenKey = generateTokenGenKey().getEncoded();
-        SecretKey updateCounterKey = UpdateCounterEncryption.generateRandomKey();
-
-        Map<KeywordToken, Integer> emptyUpdateCounter = new HashMap<>();
-        EncryptedUpdateCounter encryptedUpdateCounter;
-        try {
-            encryptedUpdateCounter = UpdateCounterEncryption.encryptUpdateCounter(
-                    updateCounterKey,
-                    UpdateCounterEncryption.generateIv(),
-                    emptyUpdateCounter
-            );
-        } catch (Exception e) {
-            throw new RuntimeException("Error encrypting initial update counter", e);
+    public boolean sendInitializeStateRequest(InitializationMaterial initializationMaterial) {
+        if (initializationMaterial == null) {
+            throw new IllegalArgumentException("initializationMaterial cannot be null");
         }
 
-        byte[] requestData = serialize(RequestType.INIT_STATE, encryptedUpdateCounter.serialize());
-        try {
-            Response response = service.invokeOrdered(
-                    requestData,
-                    new byte[][] {
-                            tokenGenKey,
-                            updateCounterKey.getEncoded()
-                    }
-            );
-            byte[] plainResponse = response.getPainData();
-            if (plainResponse == null || plainResponse.length == 0) {
-                throw new RuntimeException("Response status missing from server");
-            }
-            ResponseStatus responseStatus = ResponseStatus.getResponseStatus(Byte.toUnsignedInt(plainResponse[0]));
-            if (responseStatus == ResponseStatus.OK) {
-                System.out.println("State initialized.");
-            } else {
-                System.out.println("State was already initialized.");
-            }
-        } catch (SecretSharingException e) {
-            throw new RuntimeException("Error invoking state initialization", e);
-        }
-    }
-
-    private SecretKey generateTokenGenKey() {
-        KeyGenerator keyGen;
-        try {
-            keyGen = KeyGenerator.getInstance("HmacSHA256");
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("HmacSHA256 algorithm not available for token generation key", e);
-        }
-        keyGen.init(256);
-        return keyGen.generateKey();
+        return sendStatusOnlyRequest(
+                RequestType.INIT_STATE,
+                initializationMaterial.encryptedUpdateCounter().serialize(),
+                new byte[][] {
+                        initializationMaterial.tokenGenKey().getEncoded(),
+                        initializationMaterial.updateCounterKey().getEncoded()
+                }
+        );
     }
 
     public StateRequestResult requestState() {
+        return requestState(RequestType.STATE);
+    }
+
+    public StateRequestResult requestSetupState() {
+        return requestState(RequestType.SETUP_STATE);
+    }
+
+    private StateRequestResult requestState(RequestType requestType) {
         boolean waitingLogged = false;
         while (true) {
             try {
-                Response response = service.invokeOrdered(serialize(RequestType.STATE, null));
+                Response response = service.invokeOrdered(serialize(requestType, null));
                 byte[] plainResponse = response.getPainData();
                 if (plainResponse == null || plainResponse.length == 0) {
                     throw new RuntimeException("State response missing from server");
@@ -131,7 +99,7 @@ public final class ConfidentialClientAdapter {
                 SecretKey updateCounterKey = new SecretKeySpec(response.getConfidentialData()[1], "AES");
                 return new StateRequestResult(state, tokenGenKey, updateCounterKey);
             } catch (SecretSharingException e) {
-                throw new RuntimeException("Error invoking state operation", e);
+                throw new RuntimeException("Error invoking " + requestType + " operation", e);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new RuntimeException("Interrupted while waiting to retry state request", e);
@@ -163,22 +131,38 @@ public final class ConfidentialClientAdapter {
     }
 
     public boolean sendUpdateRequest(UpdateToken updateToken, SecretKey updateTupleKey) {
-        Response response;
-        try {
-            response = service.invokeOrdered(
-                    serialize(RequestType.UPDATE, updateToken.serialize()),
-                    new byte[][]{updateTupleKey.getEncoded()}
-            );
-        } catch (SecretSharingException e) {
-            throw new RuntimeException("Error invoking update request", e);
+        return sendStatusOnlyRequest(
+                RequestType.UPDATE,
+                updateToken == null ? null : updateToken.serialize(),
+                updateTupleKey == null ? null : new byte[][]{updateTupleKey.getEncoded()}
+        );
+    }
+
+    public boolean sendBulkUpdateRequest(BulkUpdateRequest bulkUpdateRequest, SecretKey[] updateTupleKeys) {
+        byte[][] confidentialData = null;
+        if (updateTupleKeys != null) {
+            confidentialData = new byte[updateTupleKeys.length][];
+            for (int i = 0; i < updateTupleKeys.length; i++) {
+                if (updateTupleKeys[i] == null) {
+                    throw new IllegalArgumentException("updateTupleKeys cannot contain null values");
+                }
+                confidentialData[i] = updateTupleKeys[i].getEncoded();
+            }
         }
 
-        byte[] plainResponse = response.getPainData();
-        if (plainResponse == null || plainResponse.length == 0) {
-            throw new RuntimeException("Response status missing from server");
-        }
-        ResponseStatus responseStatus = ResponseStatus.getResponseStatus(Byte.toUnsignedInt(plainResponse[0]));
-        return responseStatus == ResponseStatus.OK;
+        return sendStatusOnlyRequest(
+                RequestType.BULK_UPDATE,
+                bulkUpdateRequest == null ? null : bulkUpdateRequest.serialize(),
+                confidentialData
+        );
+    }
+
+    public boolean sendSetupCompleteRequest() {
+        return sendStatusOnlyRequest(RequestType.SETUP_COMPLETE, null, null);
+    }
+
+    public boolean sendSetupAbortRequest() {
+        return sendStatusOnlyRequest(RequestType.SETUP_ABORT, null, null);
     }
 
     private byte[] serialize(RequestType type, byte[] payload) {
@@ -199,6 +183,26 @@ public final class ConfidentialClientAdapter {
         } catch (IOException e) {
             throw new RuntimeException("Error serializing request", e);
         }
+    }
+
+    private boolean sendStatusOnlyRequest(RequestType requestType, byte[] payload, byte[][] confidentialData) {
+        Response response;
+        try {
+            if (confidentialData == null) {
+                response = service.invokeOrdered(serialize(requestType, payload));
+            } else {
+                response = service.invokeOrdered(serialize(requestType, payload), confidentialData);
+            }
+        } catch (SecretSharingException e) {
+            throw new RuntimeException("Error invoking " + requestType + " request", e);
+        }
+
+        byte[] plainResponse = response.getPainData();
+        if (plainResponse == null || plainResponse.length == 0) {
+            throw new RuntimeException("Response status missing from server");
+        }
+        ResponseStatus responseStatus = ResponseStatus.getResponseStatus(Byte.toUnsignedInt(plainResponse[0]));
+        return responseStatus == ResponseStatus.OK;
     }
 
     private Map<EncryptedUpdateTuple, SecretKey> deserializeSearchResults(byte[] serializedTuples, byte[][] tupleKeyBytes) {

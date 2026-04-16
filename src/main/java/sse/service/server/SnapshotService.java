@@ -17,6 +17,7 @@ public final class SnapshotService {
                 state.encryptedUpdateCounter(),
                 state.activeClientId(),
                 state.blockedStateRequestsWhileActive(),
+                state.setupInProgress(),
                 state.searchCache().snapshotCachedAddresses(),
                 state.searchCache().snapshotNextSearchIndex(),
                 state.invertedIndexStore().snapshot(),
@@ -46,6 +47,7 @@ public final class SnapshotService {
         state.setEncryptedUpdateCounter(snapshotData.encryptedUpdateCounter());
         state.setActiveClientId(snapshotData.activeClientId());
         state.setBlockedStateRequestsWhileActive(snapshotData.blockedStateRequestsWhileActive());
+        state.setSetupInProgress(snapshotData.setupInProgress());
         state.searchCache().restore(snapshotData.dbCache(), snapshotData.nextSearchIndex());
         state.invertedIndexStore().restore(snapshotData.invertedIndex());
         state.keyShareStore().restoreUpdateTupleShares(updateTupleShares);
