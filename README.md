@@ -124,11 +124,15 @@ The preprocessing task supports the following properties:
 
 - `-Pinput`: input CSV path
 - `-Poutput`: output NDJSON path
-- `-Pmode`: `compact` or `full`
+- `-Pmode`: `compact`, `full`, or `benchmark`
 - `-PtopK`: number of keywords kept in `compact` mode
 - `-PmaxDocFreqRatio`: upper bound on keyword document frequency in `compact` mode
+- `-PbucketSpec`: benchmark bucket ranges in `min:max,min:max,...` format
+- `-PsamplesPerBucket`: number of keywords selected per benchmark bucket
 
 By default, the task runs in `compact` mode with `topK=500` and `maxDocFreqRatio=0.02`.
+
+The `benchmark` mode creates a smaller real-data NDJSON subset by selecting keywords from document-frequency buckets.
 
 ## Running the SSE Demo
 

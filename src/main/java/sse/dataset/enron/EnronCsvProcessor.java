@@ -29,6 +29,8 @@ public final class EnronCsvProcessor {
     private static final ProcessingMode DEFAULT_MODE = ProcessingMode.COMPACT;
     private static final int DEFAULT_TOP_K = 500;
     private static final double DEFAULT_MAX_DOC_FREQ_RATIO = 0.02d;
+    private static final String DEFAULT_BUCKET_SPEC = "8:12,80:120,800:1200,8000:12000";
+    private static final int DEFAULT_SAMPLES_PER_BUCKET = 10;
     private static final long PROGRESS_UPDATE_INTERVAL_MS = 2000L;
 
     private final KeywordExtractor keywordExtractor;
@@ -40,9 +42,10 @@ public final class EnronCsvProcessor {
     }
 
     public static void main(String[] args) {
-        if (args.length > 5) {
+        if (args.length > 7) {
             throw new IllegalArgumentException(
-                    "Usage: EnronCsvProcessor [inputCsvPath] [outputNdjsonPath] [mode] [topK] [maxDocFreqRatio]");
+                    "Usage: EnronCsvProcessor [inputCsvPath] [outputNdjsonPath] [mode] [topK] [maxDocFreqRatio] "
+                            + "[bucketSpec] [samplesPerBucket]");
         }
 
         Path input = args.length > 0 ? Paths.get(args[0]) : DEFAULT_INPUT;
@@ -52,39 +55,71 @@ public final class EnronCsvProcessor {
         double maxDocFreqRatio = args.length > 4
                 ? parseMaxDocFreqRatio(args[4])
                 : DEFAULT_MAX_DOC_FREQ_RATIO;
+        String bucketSpec = args.length > 5 ? args[5] : DEFAULT_BUCKET_SPEC;
+        int samplesPerBucket = args.length > 6
+                ? parsePositiveInt(args[6], "samplesPerBucket")
+                : DEFAULT_SAMPLES_PER_BUCKET;
 
         EnronCsvProcessor processor = new EnronCsvProcessor();
-        ProcessingSummary summary = processor.process(input, output, mode, topK, maxDocFreqRatio);
+        ProcessingSummary summary = processor.process(
+                input,
+                output,
+                mode,
+                topK,
+                maxDocFreqRatio,
+                bucketSpec,
+                samplesPerBucket
+        );
         System.out.println("Mode: " + summary.mode().value());
         System.out.println("Processed " + summary.processedDocuments + " documents.");
         System.out.println("Skipped " + summary.skippedDocuments + " documents.");
         System.out.println("Extracted " + summary.extractedUniqueKeywords + " unique keywords before selection.");
         if (summary.mode() == ProcessingMode.COMPACT) {
             System.out.println("Filtered " + summary.filteredCommonKeywords + " too-common keywords.");
-            System.out.println("Kept " + summary.writtenUniqueKeywords + " keywords after topK="
-                    + summary.topK + " and maxDocFreqRatio="
-                    + String.format(Locale.ROOT, "%.4f", summary.maxDocFreqRatio) + ".");
+            System.out.println("Wrote " + summary.writtenUniqueKeywords + " unique keywords.");
+        } else if (summary.mode() == ProcessingMode.BENCHMARK) {
+            System.out.println("Wrote " + summary.writtenUniqueKeywords + " benchmark keywords.");
         } else {
             System.out.println("Wrote " + summary.writtenUniqueKeywords + " unique keywords.");
         }
-        System.out.println("Generated " + summary.totalKeywordAssignments + " keyword-to-doc assignments.");
         System.out.println("Wrote NDJSON output to " + output.toAbsolutePath());
     }
 
     public ProcessingSummary process(Path inputPath, Path outputPath) {
-        return process(inputPath, outputPath, ProcessingMode.FULL, DEFAULT_TOP_K, DEFAULT_MAX_DOC_FREQ_RATIO);
+        return process(
+                inputPath,
+                outputPath,
+                ProcessingMode.FULL,
+                DEFAULT_TOP_K,
+                DEFAULT_MAX_DOC_FREQ_RATIO,
+                DEFAULT_BUCKET_SPEC,
+                DEFAULT_SAMPLES_PER_BUCKET
+        );
     }
 
     public ProcessingSummary process(Path inputPath, Path outputPath,
                                      ProcessingMode mode, int topK, double maxDocFreqRatio) {
+        return process(
+                inputPath,
+                outputPath,
+                mode,
+                topK,
+                maxDocFreqRatio,
+                DEFAULT_BUCKET_SPEC,
+                DEFAULT_SAMPLES_PER_BUCKET
+        );
+    }
+
+    public ProcessingSummary process(Path inputPath, Path outputPath,
+                                     ProcessingMode mode, int topK, double maxDocFreqRatio,
+                                     String bucketSpec, int samplesPerBucket) {
         validateInputPath(inputPath);
         ensureParentDirectory(outputPath);
-        validateModeSettings(mode, topK, maxDocFreqRatio);
+        validateModeSettings(mode, topK, maxDocFreqRatio, bucketSpec, samplesPerBucket);
 
         Map<String, List<String>> keywordToDocIds = new LinkedHashMap<String, List<String>>();
         int processedDocuments = 0;
         int skippedDocuments = 0;
-        long totalKeywordAssignments = 0L;
         long inputSizeBytes = inputSizeBytes(inputPath);
         long startTimeNanos = System.nanoTime();
         long lastProgressUpdateNanos = startTimeNanos;
@@ -117,7 +152,6 @@ public final class EnronCsvProcessor {
                         keywordToDocIds.put(keyword, docIds);
                     }
                     docIds.add(docId);
-                    totalKeywordAssignments++;
                 }
                 processedDocuments++;
 
@@ -138,7 +172,7 @@ public final class EnronCsvProcessor {
 
         if (mode == ProcessingMode.FULL) {
             selectedEntries.addAll(keywordToDocIds.entrySet());
-        } else {
+        } else if (mode == ProcessingMode.COMPACT) {
             for (Map.Entry<String, List<String>> entry : keywordToDocIds.entrySet()) {
                 double docFrequencyRatio = processedDocuments == 0
                         ? 0.0d
@@ -164,6 +198,8 @@ public final class EnronCsvProcessor {
             if (selectedEntries.size() > topK) {
                 selectedEntries = new ArrayList<Map.Entry<String, List<String>>>(selectedEntries.subList(0, topK));
             }
+        } else {
+            selectedEntries.addAll(selectBenchmarkEntries(keywordToDocIds, bucketSpec, samplesPerBucket));
         }
 
         writeNdjson(outputPath, selectedEntries);
@@ -175,10 +211,7 @@ public final class EnronCsvProcessor {
                 extractedUniqueKeywords,
                 selectedEntries.size(),
                 filteredCommonKeywords,
-                totalKeywordAssignments,
-                mode,
-                topK,
-                maxDocFreqRatio
+                mode
         );
     }
 
@@ -214,7 +247,8 @@ public final class EnronCsvProcessor {
         }
     }
 
-    private void validateModeSettings(ProcessingMode mode, int topK, double maxDocFreqRatio) {
+    private void validateModeSettings(ProcessingMode mode, int topK, double maxDocFreqRatio,
+                                      String bucketSpec, int samplesPerBucket) {
         if (mode == null) {
             throw new IllegalArgumentException("mode cannot be null");
         }
@@ -223,6 +257,12 @@ public final class EnronCsvProcessor {
         }
         if (maxDocFreqRatio <= 0.0d || maxDocFreqRatio > 1.0d) {
             throw new IllegalArgumentException("maxDocFreqRatio must be in the range (0, 1]");
+        }
+        if (mode == ProcessingMode.BENCHMARK) {
+            parseBuckets(bucketSpec);
+            if (samplesPerBucket <= 0) {
+                throw new IllegalArgumentException("samplesPerBucket must be a positive integer");
+            }
         }
     }
 
@@ -460,30 +500,95 @@ public final class EnronCsvProcessor {
         return String.format("%ds", seconds);
     }
 
+    private List<Map.Entry<String, List<String>>> selectBenchmarkEntries(Map<String, List<String>> keywordToDocIds,
+                                                                         String bucketSpec,
+                                                                         int samplesPerBucket) {
+        List<BenchmarkBucket> buckets = parseBuckets(bucketSpec);
+        for (Map.Entry<String, List<String>> entry : keywordToDocIds.entrySet()) {
+            int docCount = entry.getValue().size();
+            for (BenchmarkBucket bucket : buckets) {
+                if (!bucket.isFull(samplesPerBucket) && bucket.contains(docCount)) {
+                    bucket.addSelectedEntry(entry);
+                    break;
+                }
+            }
+
+            if (allBucketsFull(buckets, samplesPerBucket)) {
+                break;
+            }
+        }
+
+        List<Map.Entry<String, List<String>>> selectedEntries = new ArrayList<Map.Entry<String, List<String>>>();
+        for (BenchmarkBucket bucket : buckets) {
+            selectedEntries.addAll(bucket.selectedEntries());
+        }
+        return selectedEntries;
+    }
+
+    private List<BenchmarkBucket> parseBuckets(String bucketSpec) {
+        if (bucketSpec == null || bucketSpec.trim().isEmpty()) {
+            throw new IllegalArgumentException("bucketSpec cannot be null or empty in benchmark mode");
+        }
+
+        String[] rawBuckets = bucketSpec.split(",");
+        List<BenchmarkBucket> buckets = new ArrayList<BenchmarkBucket>(rawBuckets.length);
+        for (String rawBucket : rawBuckets) {
+            String normalized = rawBucket.trim();
+            if (normalized.isEmpty()) {
+                throw new IllegalArgumentException("bucketSpec cannot contain empty bucket definitions");
+            }
+
+            int separatorIndex = normalized.indexOf(':');
+            if (separatorIndex <= 0 || separatorIndex == normalized.length() - 1
+                    || normalized.indexOf(':', separatorIndex + 1) >= 0) {
+                throw new IllegalArgumentException("Invalid bucket definition: " + normalized);
+            }
+
+            int minDocs = parsePositiveInt(normalized.substring(0, separatorIndex), "bucket min");
+            int maxDocs = parsePositiveInt(normalized.substring(separatorIndex + 1), "bucket max");
+            if (minDocs > maxDocs) {
+                throw new IllegalArgumentException("Bucket min cannot be greater than max: " + normalized);
+            }
+
+            BenchmarkBucket bucket = new BenchmarkBucket(minDocs, maxDocs);
+            for (BenchmarkBucket existing : buckets) {
+                if (existing.overlaps(bucket)) {
+                    throw new IllegalArgumentException("Overlapping benchmark buckets are not allowed: "
+                            + existing.label() + " and " + bucket.label());
+                }
+            }
+            buckets.add(bucket);
+        }
+
+        return buckets;
+    }
+
+    private boolean allBucketsFull(List<BenchmarkBucket> buckets, int samplesPerBucket) {
+        for (BenchmarkBucket bucket : buckets) {
+            if (!bucket.isFull(samplesPerBucket)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public static final class ProcessingSummary {
         private final int processedDocuments;
         private final int skippedDocuments;
         private final int extractedUniqueKeywords;
         private final int writtenUniqueKeywords;
         private final int filteredCommonKeywords;
-        private final long totalKeywordAssignments;
         private final ProcessingMode mode;
-        private final int topK;
-        private final double maxDocFreqRatio;
 
         private ProcessingSummary(int processedDocuments, int skippedDocuments,
                                   int extractedUniqueKeywords, int writtenUniqueKeywords,
-                                  int filteredCommonKeywords, long totalKeywordAssignments,
-                                  ProcessingMode mode, int topK, double maxDocFreqRatio) {
+                                  int filteredCommonKeywords, ProcessingMode mode) {
             this.processedDocuments = processedDocuments;
             this.skippedDocuments = skippedDocuments;
             this.extractedUniqueKeywords = extractedUniqueKeywords;
             this.writtenUniqueKeywords = writtenUniqueKeywords;
             this.filteredCommonKeywords = filteredCommonKeywords;
-            this.totalKeywordAssignments = totalKeywordAssignments;
             this.mode = mode;
-            this.topK = topK;
-            this.maxDocFreqRatio = maxDocFreqRatio;
         }
 
         public int processedDocuments() {
@@ -510,26 +615,15 @@ public final class EnronCsvProcessor {
             return filteredCommonKeywords;
         }
 
-        public long totalKeywordAssignments() {
-            return totalKeywordAssignments;
-        }
-
         public ProcessingMode mode() {
             return mode;
-        }
-
-        public int topK() {
-            return topK;
-        }
-
-        public double maxDocFreqRatio() {
-            return maxDocFreqRatio;
         }
     }
 
     public enum ProcessingMode {
         FULL,
-        COMPACT;
+        COMPACT,
+        BENCHMARK;
 
         private static ProcessingMode fromArg(String value) {
             if (value == null) {
@@ -543,7 +637,10 @@ public final class EnronCsvProcessor {
             if ("compact".equals(normalized)) {
                 return COMPACT;
             }
-            throw new IllegalArgumentException("mode must be either 'full' or 'compact': " + value);
+            if ("benchmark".equals(normalized)) {
+                return BENCHMARK;
+            }
+            throw new IllegalArgumentException("mode must be either 'full', 'compact', or 'benchmark': " + value);
         }
 
         private String value() {
@@ -605,6 +702,42 @@ public final class EnronCsvProcessor {
 
         private long bytesRead() {
             return bytesRead;
+        }
+    }
+
+    private static final class BenchmarkBucket {
+        private final int minDocs;
+        private final int maxDocs;
+        private final List<Map.Entry<String, List<String>>> selectedEntries;
+
+        private BenchmarkBucket(int minDocs, int maxDocs) {
+            this.minDocs = minDocs;
+            this.maxDocs = maxDocs;
+            this.selectedEntries = new ArrayList<Map.Entry<String, List<String>>>();
+        }
+
+        private boolean contains(int docCount) {
+            return docCount >= minDocs && docCount <= maxDocs;
+        }
+
+        private boolean overlaps(BenchmarkBucket other) {
+            return minDocs <= other.maxDocs && other.minDocs <= maxDocs;
+        }
+
+        private boolean isFull(int samplesPerBucket) {
+            return selectedEntries.size() >= samplesPerBucket;
+        }
+
+        private void addSelectedEntry(Map.Entry<String, List<String>> entry) {
+            selectedEntries.add(entry);
+        }
+
+        private List<Map.Entry<String, List<String>>> selectedEntries() {
+            return selectedEntries;
+        }
+
+        private String label() {
+            return minDocs + ":" + maxDocs;
         }
     }
 }

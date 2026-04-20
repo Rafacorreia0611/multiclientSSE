@@ -119,8 +119,10 @@ task processEnronDataset(type: JavaExec, dependsOn: classes) {
     def mode = (project.findProperty('mode') ?: 'compact').toString()
     def topK = (project.findProperty('topK') ?: '500').toString()
     def maxDocFreqRatio = (project.findProperty('maxDocFreqRatio') ?: '0.02').toString()
+    def bucketSpec = (project.findProperty('bucketSpec') ?: '8:12,80:120,800:1200,8000:12000').toString()
+    def samplesPerBucket = (project.findProperty('samplesPerBucket') ?: '10').toString()
 
-    args inputPath, outputPath, mode, topK, maxDocFreqRatio
+    args inputPath, outputPath, mode, topK, maxDocFreqRatio, bucketSpec, samplesPerBucket
 }
 
 dependencies {
