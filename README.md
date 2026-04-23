@@ -168,15 +168,20 @@ If you want to preload the SSE state from an Enron NDJSON file, start a second c
 
 ```bash
 cd build/local/cli0
-./smartrun.sh sse.populatedb.PopulateDB 101 datasets/processed/enron/keyword_to_docids.ndjson
+./smartrun.sh sse.populatedb.PopulateDB \
+  --client-id 101 \
+  --input datasets/processed/enron/keyword_to_docids.ndjson \
+  --batch-size 250
 ```
 
 The `PopulateDB` command accepts:
 
-- an optional client identifier
-- an optional NDJSON input path
+- `--client-id N`
+- `--input PATH`
+- `--batch-size N`
 
 For local tests, it is often useful to prepare two client folders with `./gradlew localDeploy -Pclients=2`, use one for `PopulateDB`, and a different one for the interactive client.
+
 
 ### 3. Start the client
 

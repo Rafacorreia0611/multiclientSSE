@@ -1,0 +1,491 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+DEFAULT_CONFIG="$ROOT_DIR/benchmarkSSE/config/search_latency_by_docs.properties"
+CONFIG_PATH="${1:-$DEFAULT_CONFIG}"
+if [[ "${CONFIG_PATH}" != /* ]]; then
+  CONFIG_PATH="$ROOT_DIR/$CONFIG_PATH"
+fi
+CONFIG_DIR="$(cd "$(dirname "$CONFIG_PATH")" && pwd)"
+
+REPLICA_PIDS=()
+
+get_property() {
+  local key="$1"
+  local value
+
+  value="$(sed -n "s/^${key}=//p" "$CONFIG_PATH" | tail -n 1)"
+  if [[ -z "${value}" ]]; then
+    echo "Missing property '${key}' in $CONFIG_PATH" >&2
+    exit 1
+  fi
+
+  printf '%s\n' "$value"
+}
+
+ensure_file_exists() {
+  local path="$1"
+  if [[ ! -f "$path" ]]; then
+    echo "Required file not found: $path" >&2
+    exit 1
+  fi
+}
+
+ensure_non_empty_file() {
+  local path="$1"
+  ensure_file_exists "$path"
+  if [[ ! -s "$path" ]]; then
+    echo "File exists but is empty: $path" >&2
+    exit 1
+  fi
+}
+
+resolve_config_path() {
+  local raw_path="$1"
+
+  if [[ "$raw_path" = /* ]]; then
+    printf '%s\n' "$raw_path"
+  else
+    printf '%s\n' "$CONFIG_DIR/$raw_path"
+  fi
+}
+
+ensure_command_exists() {
+  local command_name="$1"
+  if ! command -v "$command_name" >/dev/null 2>&1; then
+    echo "Required command not found on PATH: $command_name" >&2
+    exit 1
+  fi
+}
+
+append_timestamp_to_path() {
+  local path="$1"
+  local timestamp="$2"
+  local filename extension basename directory
+
+  directory="$(dirname "$path")"
+  filename="$(basename "$path")"
+
+  if [[ "$filename" == *.* ]]; then
+    extension=".${filename##*.}"
+    basename="${filename%.*}"
+    printf '%s/%s_%s%s\n' "$directory" "$basename" "$timestamp" "$extension"
+  else
+    printf '%s/%s_%s\n' "$directory" "$filename" "$timestamp"
+  fi
+}
+
+cleanup() {
+  local pid
+  for pid in "${REPLICA_PIDS[@]:-}"; do
+    if kill -0 "$pid" 2>/dev/null; then
+      kill "$pid" 2>/dev/null || true
+      wait "$pid" 2>/dev/null || true
+    fi
+  done
+}
+
+trap cleanup EXIT INT TERM
+
+kill_existing_replicas() {
+  echo "Stopping any existing replica processes..."
+  pkill -f "sse.demo.server.Server" 2>/dev/null || true
+  sleep 1
+}
+
+load_config() {
+  ensure_file_exists "$CONFIG_PATH"
+
+  REPLICA_COUNT="$(get_property replicaCount)"
+  DEPLOY_CLIENT_COUNT="$(get_property deployClientCount)"
+  POPULATE_CLIENT_DIR="$(get_property populateClientDir)"
+  POPULATE_CLIENT_ID="$(get_property populateClientId)"
+  POPULATE_BATCH_SIZE="$(get_property populateBatchSize)"
+  BENCHMARK_CLIENT_DIR="$(get_property benchmarkClientDir)"
+
+  PROCESSOR_MODE="$(get_property processorMode)"
+  PROCESSOR_OUTPUT_PATH="$(get_property processorOutputPath)"
+  PROCESSOR_BUCKETS="$(get_property processorBuckets)"
+  PROCESSOR_SAMPLES_PER_BUCKET="$(get_property processorSamplesPerBucket)"
+
+  SCENARIO="$(get_property scenario)"
+  CLIENT_ID="$(get_property clientId)"
+  WARMUP_PER_BUCKET="$(get_property warmupPerBucket)"
+  MEASUREMENTS_PER_BUCKET="$(get_property measurementsPerBucket)"
+  TIMESTAMP_OUTPUTS="$(get_property timestampOutputs)"
+  TIMESTAMP_FORMAT="$(get_property timestampFormat)"
+  INPUT_PATH="$(get_property inputPath)"
+  OUTPUT_PATH="$(get_property outputPath)"
+  SUMMARY_OUTPUT_PATH="$(get_property summaryOutputPath)"
+  MEAN_PLOT_OUTPUT_PATH="$(get_property meanPlotOutputPath)"
+  MEDIAN_PLOT_OUTPUT_PATH="$(get_property medianPlotOutputPath)"
+  BUCKETS="$(get_property buckets)"
+
+  EXPECTED_SAMPLES_PER_BUCKET=$((WARMUP_PER_BUCKET + MEASUREMENTS_PER_BUCKET))
+  if [[ "$PROCESSOR_SAMPLES_PER_BUCKET" -ne "$EXPECTED_SAMPLES_PER_BUCKET" ]]; then
+    echo "processorSamplesPerBucket ($PROCESSOR_SAMPLES_PER_BUCKET) must equal warmupPerBucket + measurementsPerBucket ($EXPECTED_SAMPLES_PER_BUCKET)" >&2
+    exit 1
+  fi
+
+  if [[ "$PROCESSOR_OUTPUT_PATH" != "$INPUT_PATH" ]]; then
+    echo "processorOutputPath ($PROCESSOR_OUTPUT_PATH) must match inputPath ($INPUT_PATH)" >&2
+    exit 1
+  fi
+
+  if [[ "$PROCESSOR_BUCKETS" != "$BUCKETS" ]]; then
+    echo "processorBuckets ($PROCESSOR_BUCKETS) must match buckets ($BUCKETS)" >&2
+    exit 1
+  fi
+
+  ABS_PROCESSOR_OUTPUT_PATH="$(resolve_config_path "$PROCESSOR_OUTPUT_PATH")"
+  ABS_DATASET_PATH="$(resolve_config_path "$INPUT_PATH")"
+  BASE_OUTPUT_PATH="$(resolve_config_path "$OUTPUT_PATH")"
+  BASE_SUMMARY_PATH="$(resolve_config_path "$SUMMARY_OUTPUT_PATH")"
+  BASE_MEAN_PLOT_PATH="$(resolve_config_path "$MEAN_PLOT_OUTPUT_PATH")"
+  BASE_MEDIAN_PLOT_PATH="$(resolve_config_path "$MEDIAN_PLOT_OUTPUT_PATH")"
+  ABS_GNUPLOT_SCRIPT="$ROOT_DIR/benchmarkSSE/gnuplot/search_latency_by_docs_mean_median.gp"
+  ABS_SUMMARIZE_SCRIPT="$ROOT_DIR/benchmarkSSE/scripts/summarize_search_latency.py"
+
+  validate_positive_integer "$REPLICA_COUNT" "replicaCount"
+  validate_positive_integer "$DEPLOY_CLIENT_COUNT" "deployClientCount"
+  validate_positive_integer "$POPULATE_CLIENT_ID" "populateClientId"
+  validate_positive_integer "$POPULATE_BATCH_SIZE" "populateBatchSize"
+  validate_client_dir "$POPULATE_CLIENT_DIR" "populateClientDir"
+  validate_client_dir "$BENCHMARK_CLIENT_DIR" "benchmarkClientDir"
+  validate_boolean "$TIMESTAMP_OUTPUTS" "timestampOutputs"
+
+  if [[ "$TIMESTAMP_OUTPUTS" == "true" ]]; then
+    RUN_TIMESTAMP="$(date +"$TIMESTAMP_FORMAT")"
+    ABS_OUTPUT_PATH="$(append_timestamp_to_path "$BASE_OUTPUT_PATH" "$RUN_TIMESTAMP")"
+    ABS_SUMMARY_PATH="$(append_timestamp_to_path "$BASE_SUMMARY_PATH" "$RUN_TIMESTAMP")"
+    ABS_MEAN_PLOT_PATH="$(append_timestamp_to_path "$BASE_MEAN_PLOT_PATH" "$RUN_TIMESTAMP")"
+    ABS_MEDIAN_PLOT_PATH="$(append_timestamp_to_path "$BASE_MEDIAN_PLOT_PATH" "$RUN_TIMESTAMP")"
+  else
+    RUN_TIMESTAMP="latest"
+    ABS_OUTPUT_PATH="$BASE_OUTPUT_PATH"
+    ABS_SUMMARY_PATH="$BASE_SUMMARY_PATH"
+    ABS_MEAN_PLOT_PATH="$BASE_MEAN_PLOT_PATH"
+    ABS_MEDIAN_PLOT_PATH="$BASE_MEDIAN_PLOT_PATH"
+  fi
+
+  ABS_LOG_DIR="$ROOT_DIR/benchmarkSSE/results/logs/$RUN_TIMESTAMP"
+  RUNTIME_CONFIG_PATH="$ABS_LOG_DIR/runtime_search_latency_by_docs.properties"
+}
+
+validate_positive_integer() {
+  local value="$1"
+  local label="$2"
+
+  if ! [[ "$value" =~ ^[0-9]+$ ]] || [[ "$value" -le 0 ]]; then
+    echo "Property $label must be a positive integer." >&2
+    exit 1
+  fi
+}
+
+validate_boolean() {
+  local value="$1"
+  local label="$2"
+
+  if [[ "$value" != "true" && "$value" != "false" ]]; then
+    echo "Property $label must be either true or false." >&2
+    exit 1
+  fi
+}
+
+validate_client_dir() {
+  local dir_name="$1"
+  local label="$2"
+  local client_index
+
+  if [[ ! "$dir_name" =~ ^cli([0-9]+)$ ]]; then
+    echo "Property $label must use the format cliN." >&2
+    exit 1
+  fi
+
+  client_index="${BASH_REMATCH[1]}"
+  if (( client_index >= DEPLOY_CLIENT_COUNT )); then
+    echo "Property $label ($dir_name) requires deployClientCount greater than $client_index." >&2
+    exit 1
+  fi
+}
+
+prepare_directories() {
+  mkdir -p "$ABS_LOG_DIR"
+  mkdir -p "$(dirname "$ABS_OUTPUT_PATH")"
+  mkdir -p "$(dirname "$ABS_SUMMARY_PATH")"
+  mkdir -p "$(dirname "$ABS_MEAN_PLOT_PATH")"
+}
+
+write_runtime_config() {
+  echo "Writing runtime benchmark config..."
+  {
+    while IFS= read -r line; do
+      case "$line" in
+        inputPath=*)
+          printf 'inputPath=%s\n' "$ABS_DATASET_PATH"
+          ;;
+        outputPath=*)
+          printf 'outputPath=%s\n' "$ABS_OUTPUT_PATH"
+          ;;
+        summaryOutputPath=*)
+          printf 'summaryOutputPath=%s\n' "$ABS_SUMMARY_PATH"
+          ;;
+        meanPlotOutputPath=*)
+          printf 'meanPlotOutputPath=%s\n' "$ABS_MEAN_PLOT_PATH"
+          ;;
+        medianPlotOutputPath=*)
+          printf 'medianPlotOutputPath=%s\n' "$ABS_MEDIAN_PLOT_PATH"
+          ;;
+        *)
+          printf '%s\n' "$line"
+          ;;
+      esac
+    done < "$CONFIG_PATH"
+  } > "$RUNTIME_CONFIG_PATH"
+
+  ensure_non_empty_file "$RUNTIME_CONFIG_PATH"
+}
+
+validate_existing_dataset() {
+  local expected_total_lines
+
+  ensure_non_empty_file "$ABS_DATASET_PATH"
+
+  expected_total_lines=$((PROCESSOR_SAMPLES_PER_BUCKET * $(printf '%s' "$PROCESSOR_BUCKETS" | awk -F',' '{print NF}')))
+  if [[ "$(wc -l < "$ABS_DATASET_PATH")" -ne "$expected_total_lines" ]]; then
+    echo "Existing dataset line count does not match expected total entries." >&2
+    return 1
+  fi
+
+  return 0
+}
+
+generate_dataset() {
+  if [[ -f "$ABS_DATASET_PATH" ]] && validate_existing_dataset; then
+    echo "Reusing existing benchmark dataset at $ABS_DATASET_PATH."
+    return
+  fi
+
+  echo "Generating benchmark dataset..."
+  (
+    cd "$ROOT_DIR"
+    ./gradlew processEnronDataset \
+      -Pmode="$PROCESSOR_MODE" \
+      -Poutput="$ABS_PROCESSOR_OUTPUT_PATH" \
+      -PbucketSpec="$PROCESSOR_BUCKETS" \
+      -PsamplesPerBucket="$PROCESSOR_SAMPLES_PER_BUCKET"
+  )
+
+  if ! validate_existing_dataset; then
+    echo "Generated dataset does not match the configured benchmark buckets." >&2
+    exit 1
+  fi
+}
+
+prepare_local_deploy() {
+  echo "Preparing local deployment..."
+  (
+    cd "$ROOT_DIR"
+    ./gradlew localDeploy -Pservers="$REPLICA_COUNT" -Pclients="$DEPLOY_CLIENT_COUNT"
+  )
+}
+
+start_replicas() {
+  local replica_id
+
+  echo "Starting replicas..."
+  REPLICA_PIDS=()
+  for (( replica_id = 0; replica_id < REPLICA_COUNT; replica_id++ )); do
+    (
+      cd "$ROOT_DIR/build/local/rep${replica_id}"
+      bash smartrun.sh sse.demo.server.Server "$replica_id"
+    ) >"$ABS_LOG_DIR/rep${replica_id}.log" 2>&1 &
+    REPLICA_PIDS+=("$!")
+  done
+}
+
+wait_for_replicas_ready() {
+  local timeout_seconds=60
+  local deadline=$((SECONDS + timeout_seconds))
+  local replica_id
+  local ready
+
+  echo "Waiting for replicas to become ready..."
+  while (( SECONDS < deadline )); do
+    ready=1
+    for (( replica_id = 0; replica_id < REPLICA_COUNT; replica_id++ )); do
+      if ! grep -q "Ready to process operations" "$ABS_LOG_DIR/rep${replica_id}.log" 2>/dev/null; then
+        ready=0
+        break
+      fi
+    done
+
+    if [[ "$ready" -eq 1 ]]; then
+      echo "All replicas are ready."
+      return
+    fi
+
+    sleep 1
+  done
+
+  echo "Timed out while waiting for replicas to become ready." >&2
+  for (( replica_id = 0; replica_id < REPLICA_COUNT; replica_id++ )); do
+    echo "--- rep${replica_id}.log (tail) ---" >&2
+    tail -n 20 "$ABS_LOG_DIR/rep${replica_id}.log" >&2 || true
+  done
+  exit 1
+}
+
+run_populate() {
+  echo "Running PopulateDB..."
+  (
+    cd "$ROOT_DIR/build/local/$POPULATE_CLIENT_DIR"
+    bash smartrun.sh sse.populatedb.PopulateDB \
+      --client-id "$POPULATE_CLIENT_ID" \
+      --input "$ABS_DATASET_PATH" \
+      --batch-size "$POPULATE_BATCH_SIZE"
+  ) >"$ABS_LOG_DIR/populate.log" 2>&1
+
+  if ! grep -q "PopulateDB finished." "$ABS_LOG_DIR/populate.log"; then
+    echo "PopulateDB did not finish successfully." >&2
+    tail -n 40 "$ABS_LOG_DIR/populate.log" >&2 || true
+    exit 1
+  fi
+}
+
+verify_population_ready() {
+  local replica_id
+  local ready_messages=0
+
+  for (( replica_id = 0; replica_id < REPLICA_COUNT; replica_id++ )); do
+    if grep -q "SSE database population is ready." "$ABS_LOG_DIR/rep${replica_id}.log" 2>/dev/null; then
+      ready_messages=$((ready_messages + 1))
+    fi
+  done
+
+  if [[ "$ready_messages" -eq 0 ]]; then
+    echo "Warning: no replica log contained the population-ready message." >&2
+  else
+    echo "Population-ready message observed in $ready_messages replica log(s)."
+  fi
+}
+
+run_benchmark() {
+  echo "Running benchmark client..."
+  (
+    cd "$ROOT_DIR/build/local/$BENCHMARK_CLIENT_DIR"
+    bash smartrun.sh sse.benchmark.BenchmarkClient "$RUNTIME_CONFIG_PATH"
+  ) >"$ABS_LOG_DIR/benchmark.log" 2>&1
+}
+
+verify_results() {
+  local line_count
+
+  ensure_non_empty_file "$ABS_OUTPUT_PATH"
+
+  if ! head -n 1 "$ABS_OUTPUT_PATH" | grep -q "^scenario,operation,run,keyword,doc_count,bucket,cache_mode,latency_ns$"; then
+    echo "Unexpected CSV header in $ABS_OUTPUT_PATH" >&2
+    exit 1
+  fi
+
+  if ! grep -q ",fresh," "$ABS_OUTPUT_PATH"; then
+    echo "CSV output does not contain any fresh measurements." >&2
+    exit 1
+  fi
+
+  if ! grep -q ",cached," "$ABS_OUTPUT_PATH"; then
+    echo "CSV output does not contain any cached measurements." >&2
+    exit 1
+  fi
+
+  line_count="$(wc -l < "$ABS_OUTPUT_PATH")"
+  echo "Benchmark results written to $ABS_OUTPUT_PATH ($line_count lines)."
+}
+
+summarize_results() {
+  ensure_command_exists python3
+  ensure_non_empty_file "$ABS_OUTPUT_PATH"
+  ensure_file_exists "$ABS_SUMMARIZE_SCRIPT"
+
+  echo "Generating summary TSV..."
+  (
+    cd "$ROOT_DIR"
+    python3 "$ABS_SUMMARIZE_SCRIPT" --input "$ABS_OUTPUT_PATH" --output "$ABS_SUMMARY_PATH"
+  )
+}
+
+verify_summary() {
+  local line_count
+  local summary_header
+
+  ensure_non_empty_file "$ABS_SUMMARY_PATH"
+
+  summary_header="$(head -n 1 "$ABS_SUMMARY_PATH" | tr -d '\r')"
+  if [[ "$summary_header" != $'bucket\tbucket_label\tbucket_min_docs\tbucket_max_docs\tcache_mode\tn\tmin_ms\tmedian_ms\tmean_ms\tp95_ms\tp99_ms\tmax_ms' ]]; then
+    echo "Unexpected TSV header in $ABS_SUMMARY_PATH" >&2
+    exit 1
+  fi
+
+  if ! grep -q $'\tfresh\t' "$ABS_SUMMARY_PATH"; then
+    echo "Summary output does not contain any fresh rows." >&2
+    exit 1
+  fi
+
+  if ! grep -q $'\tcached\t' "$ABS_SUMMARY_PATH"; then
+    echo "Summary output does not contain any cached rows." >&2
+    exit 1
+  fi
+
+  line_count="$(wc -l < "$ABS_SUMMARY_PATH")"
+  if [[ "$line_count" -le 1 ]]; then
+    echo "Summary output does not contain any data rows." >&2
+    exit 1
+  fi
+
+  echo "Summary written to $ABS_SUMMARY_PATH ($line_count lines)."
+}
+
+generate_plots() {
+  ensure_command_exists gnuplot
+  ensure_non_empty_file "$ABS_SUMMARY_PATH"
+  ensure_file_exists "$ABS_GNUPLOT_SCRIPT"
+
+  echo "Generating plots..."
+  (
+    cd "$ROOT_DIR"
+    gnuplot \
+      -e "input_path='$ABS_SUMMARY_PATH'; mean_output_path='$ABS_MEAN_PLOT_PATH'; median_output_path='$ABS_MEDIAN_PLOT_PATH'" \
+      "$ABS_GNUPLOT_SCRIPT"
+  )
+}
+
+verify_plots() {
+  ensure_non_empty_file "$ABS_MEAN_PLOT_PATH"
+  ensure_non_empty_file "$ABS_MEDIAN_PLOT_PATH"
+
+  echo "Mean plot written to $ABS_MEAN_PLOT_PATH."
+  echo "Median plot written to $ABS_MEDIAN_PLOT_PATH."
+}
+
+main() {
+  load_config
+  prepare_directories
+  write_runtime_config
+  generate_dataset
+  prepare_local_deploy
+  kill_existing_replicas
+  start_replicas
+  wait_for_replicas_ready
+  run_populate
+  verify_population_ready
+  run_benchmark
+  verify_results
+  summarize_results
+  verify_summary
+  generate_plots
+  verify_plots
+}
+
+main "$@"

@@ -4,8 +4,8 @@ import java.util.Map;
 import java.util.List;
 
 import sse.domain.EncryptedUpdateCounter;
-import sse.domain.EncryptedUpdateTuple;
 import sse.domain.IndexAddress;
+import sse.domain.SearchResponseData;
 import sse.domain.SearchToken;
 import sse.domain.State;
 import sse.domain.UpdateToken;
@@ -31,7 +31,7 @@ public final class SseServerFacade {
         this.snapshotService = new SnapshotService();
     }
 
-    public Map<EncryptedUpdateTuple, VerifiableShare> searchQuery(SearchToken searchToken) {
+    public SearchResponseData searchQuery(SearchToken searchToken) {
         return searchService.search(state, searchToken);
     }
 

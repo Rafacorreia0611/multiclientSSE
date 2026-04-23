@@ -18,7 +18,7 @@ import sse.facade.SseClientFacade;
 
 public final class PopulateDBHandler {
 
-    private static final int DEFAULT_BATCH_SIZE = 1_000;
+    private static final int DEFAULT_BATCH_SIZE = 250;
     private static final long PROGRESS_LOG_INTERVAL_MS = 2_000L;
 
     private final ConfidentialClientAdapter adapter;

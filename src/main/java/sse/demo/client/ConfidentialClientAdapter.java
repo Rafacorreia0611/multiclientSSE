@@ -72,6 +72,7 @@ public final class ConfidentialClientAdapter {
         while (true) {
             try {
                 Response response = service.invokeOrdered(serialize(requestType, null));
+                ensureResponsePresent(response, requestType + " operation");
                 byte[] plainResponse = response.getPainData();
                 if (plainResponse == null || plainResponse.length == 0) {
                     throw new RuntimeException("State response missing from server");
@@ -111,6 +112,7 @@ public final class ConfidentialClientAdapter {
         byte[] requestData = serialize(RequestType.SEARCH, searchToken.serialize());
         try {
             Response response = service.invokeOrdered(requestData);
+            ensureResponsePresent(response, "SEARCH request");
             byte[] plainResponse = response.getPainData();
             if (plainResponse == null || plainResponse.length == 0) {
                 throw new RuntimeException("Response status missing from server");
@@ -197,12 +199,20 @@ public final class ConfidentialClientAdapter {
             throw new RuntimeException("Error invoking " + requestType + " request", e);
         }
 
+        ensureResponsePresent(response, requestType + " request");
         byte[] plainResponse = response.getPainData();
         if (plainResponse == null || plainResponse.length == 0) {
             throw new RuntimeException("Response status missing from server");
         }
         ResponseStatus responseStatus = ResponseStatus.getResponseStatus(Byte.toUnsignedInt(plainResponse[0]));
         return responseStatus == ResponseStatus.OK;
+    }
+
+    private void ensureResponsePresent(Response response, String operationDescription) {
+        if (response == null) {
+            throw new RuntimeException("No response received for " + operationDescription
+                    + ". This usually means a timeout or lower-layer failure.");
+        }
     }
 
     private Map<EncryptedUpdateTuple, SecretKey> deserializeSearchResults(byte[] serializedTuples, byte[][] tupleKeyBytes) {

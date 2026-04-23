@@ -1,35 +1,34 @@
 package sse.service.server;
 
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 import sse.crypto.Prf;
 import sse.domain.EncryptedUpdateTuple;
 import sse.domain.EpochSearchKey;
 import sse.domain.IndexAddress;
 import sse.domain.KeywordToken;
+import sse.domain.SearchResponseData;
 import sse.domain.SearchToken;
 import sse.state.SseServerState;
 import vss.secretsharing.VerifiableShare;
 
 public final class SearchService {
 
-    public Map<EncryptedUpdateTuple, VerifiableShare> search(SseServerState state, SearchToken searchToken) {
+    public SearchResponseData search(SseServerState state, SearchToken searchToken) {
         EpochSearchKey epochSearchKey = searchToken.epochSearchKey();
         KeywordToken keywordToken = searchToken.keywordToken();
 
         if (!state.searchCounter().containsKey(keywordToken)) {
             state.searchCounter().put(keywordToken, 0);
         }
-        Map<EncryptedUpdateTuple, VerifiableShare> result = new LinkedHashMap<>();
+        SearchResponseData result = new SearchResponseData();
         List<IndexAddress> cachedAddresses = state.searchCache().cachedAddressesFor(keywordToken);
         if (!cachedAddresses.isEmpty()) {
             for (IndexAddress address : cachedAddresses) {
                 EncryptedUpdateTuple update = state.invertedIndexStore().get(address);
                 VerifiableShare updateTupleKey = state.keyShareStore().getUpdateTupleShare(address);
-                if (update != null) {
-                    result.put(update, updateTupleKey);
+                if (update != null && updateTupleKey != null) {
+                    result.add(update, updateTupleKey);
                 }
             }
         }
@@ -46,8 +45,10 @@ public final class SearchService {
             EncryptedUpdateTuple update = state.invertedIndexStore().get(indexAddress);
             if (update != null) {
                 VerifiableShare updateTupleKey = state.keyShareStore().getUpdateTupleShare(indexAddress);
-                result.put(update, updateTupleKey);
-                state.searchCache().cacheAddress(keywordToken, indexAddress);
+                if (updateTupleKey != null) {
+                    result.add(update, updateTupleKey);
+                    state.searchCache().cacheAddress(keywordToken, indexAddress);
+                }
             }
         }
         state.searchCache().advanceNextSearchIndex(keywordToken, currentUpdateCounter + 1);

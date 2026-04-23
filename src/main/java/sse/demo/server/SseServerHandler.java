@@ -4,15 +4,13 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectOutput;
 import java.io.ObjectOutputStream;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 
 import confidential.ConfidentialMessage;
 import confidential.statemanagement.ConfidentialSnapshot;
 import sse.demo.messages.ResponseStatus;
 import sse.domain.EncryptedUpdateCounter;
-import sse.domain.EncryptedUpdateTuple;
+import sse.domain.SearchResponseData;
 import sse.domain.SearchToken;
 import sse.domain.State;
 import sse.domain.UpdateToken;
@@ -49,17 +47,9 @@ public final class SseServerHandler {
             if (searchToken == null) {
                 return statusMessage(ResponseStatus.FAILED);
             }
-            Map<EncryptedUpdateTuple, VerifiableShare> searchResults = sseServerFacade.searchQuery(searchToken);
-            List<EncryptedUpdateTuple> encryptedTuples = new ArrayList<EncryptedUpdateTuple>(searchResults.size());
-            List<VerifiableShare> updateTupleShares = new ArrayList<VerifiableShare>(searchResults.size());
-            for (Map.Entry<EncryptedUpdateTuple, VerifiableShare> entry : searchResults.entrySet()) {
-                encryptedTuples.add(entry.getKey());
-                updateTupleShares.add(entry.getValue());
-            }
-
-            byte[] plainResponse = withStatus(ResponseStatus.OK, serializeSearchResults(encryptedTuples));
-            return new ConfidentialMessage(plainResponse,
-                    updateTupleShares.toArray(new VerifiableShare[updateTupleShares.size()]));
+            SearchResponseData searchResults = sseServerFacade.searchQuery(searchToken);
+            byte[] plainResponse = serializeResponse(ResponseStatus.OK, searchResults.encryptedTuples());
+            return new ConfidentialMessage(plainResponse, searchResults.updateTupleSharesArray());
         } finally {
             sseServerFacade.clearActiveClientId();
         }
@@ -94,7 +84,7 @@ public final class SseServerHandler {
         VerifiableShare updateCounterKeyShare = sseServerFacade.getUpdateCounterKey();
 
         sseServerFacade.activateClient(clientId, setupRequested);
-        byte[] plainResponse = withStatus(ResponseStatus.OK, state.serialize());
+        byte[] plainResponse = serializeResponse(ResponseStatus.OK, state);
         if (tokenGenKeyShare == null || updateCounterKeyShare == null) {
             return new ConfidentialMessage(plainResponse);
         }
@@ -194,28 +184,17 @@ public final class SseServerHandler {
         return new ConfidentialMessage(new byte[]{(byte) status.ordinal()});
     }
 
-    private byte[] withStatus(ResponseStatus status, byte[] payload) {
-        byte[] result;
-        if (payload == null) {
-            result = new byte[1];
-            result[0] = (byte) status.ordinal();
-            return result;
-        }
-        result = new byte[1 + payload.length];
-        result[0] = (byte) status.ordinal();
-        System.arraycopy(payload, 0, result, 1, payload.length);
-        return result;
-    }
-
-    private byte[] serializeSearchResults(List<EncryptedUpdateTuple> searchResults) {
-        try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
-             ObjectOutput out = new ObjectOutputStream(bos)) {
-            out.writeObject(searchResults);
-            out.flush();
+    private byte[] serializeResponse(ResponseStatus status, Object payload) {
+        try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
+            bos.write((byte) status.ordinal());
+            try (ObjectOutput out = new ObjectOutputStream(bos)) {
+                out.writeObject(payload);
+                out.flush();
+            }
             bos.flush();
             return bos.toByteArray();
         } catch (IOException e) {
-            throw new RuntimeException("Error serializing search results", e);
+            throw new RuntimeException("Error serializing response", e);
         }
     }
 }

@@ -10,29 +10,36 @@ public final class PopulateDB {
 
     private static final int DEFAULT_CLIENT_ID = 101;
     private static final Path DEFAULT_INPUT = Paths.get("datasets", "processed", "enron", "keyword_to_docids.ndjson");
+    private static final int DEFAULT_BATCH_SIZE = 1_000;
+    private static final String USAGE =
+            "Usage: PopulateDB [--client-id N] [--input PATH] [--batch-size N]";
 
     public static void main(String[] args) {
         int clientId = DEFAULT_CLIENT_ID;
         Path inputPath = DEFAULT_INPUT;
+        int batchSize = DEFAULT_BATCH_SIZE;
 
-        if (args.length > 0) {
-            try {
-                clientId = Integer.parseInt(args[0]);
-            } catch (NumberFormatException e) {
-                inputPath = Paths.get(args[0]);
+        for (int i = 0; i < args.length; i++) {
+            String arg = args[i];
+            switch (arg) {
+                case "--client-id":
+                    clientId = parsePositiveInteger(readOptionValue(args, ++i, "--client-id"), "--client-id");
+                    break;
+                case "--input":
+                    inputPath = Paths.get(readOptionValue(args, ++i, "--input"));
+                    break;
+                case "--batch-size":
+                    batchSize = parsePositiveInteger(readOptionValue(args, ++i, "--batch-size"), "--batch-size");
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unknown argument: " + arg + ". " + USAGE);
             }
-        }
-        if (args.length > 1) {
-            inputPath = Paths.get(args[1]);
-        }
-        if (args.length > 2) {
-            throw new IllegalArgumentException("Usage: PopulateDB [clientId] [inputNdjsonPath]");
         }
 
         ConfidentialClientAdapter adapter = null;
         try {
             adapter = new ConfidentialClientAdapter(clientId);
-            PopulateDBHandler populateDBHandler = new PopulateDBHandler(adapter);
+            PopulateDBHandler populateDBHandler = new PopulateDBHandler(adapter, batchSize);
             PopulateDBHandler.PopulationSummary summary = populateDBHandler.populate(inputPath);
             System.out.println("PopulateDB finished.");
             System.out.println("Processed keywords: " + summary.processedKeywords());
@@ -44,6 +51,29 @@ public final class PopulateDB {
             if (adapter != null) {
                 adapter.close();
             }
+        }
+    }
+
+    private static String readOptionValue(String[] args, int valueIndex, String optionName) {
+        if (valueIndex >= args.length) {
+            throw new IllegalArgumentException("Missing value for " + optionName + ". " + USAGE);
+        }
+        String value = args[valueIndex];
+        if (value.startsWith("--")) {
+            throw new IllegalArgumentException("Missing value for " + optionName + ". " + USAGE);
+        }
+        return value;
+    }
+
+    private static int parsePositiveInteger(String rawValue, String optionName) {
+        try {
+            int value = Integer.parseInt(rawValue);
+            if (value <= 0) {
+                throw new IllegalArgumentException(optionName + " must be greater than zero");
+            }
+            return value;
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid " + optionName + " value: " + rawValue, e);
         }
     }
 }

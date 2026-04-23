@@ -14,5 +14,10 @@ build
 datasets/raw/
 datasets/processed/
 
+# Ignore generated benchmark artifacts, but keep benchmark configs/scripts
+benchmarkSSE/datasets/
+benchmarkSSE/results/
+benchmarkSSE/plots/
+
 # Ignore bin directory for compiled classes
 bin
