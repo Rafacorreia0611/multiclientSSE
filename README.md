@@ -8,7 +8,7 @@ The SSE implementation lives under [`src/main/java/sse`](/Users/rafacorreia0611/
 - add
 - delete
 
-At a high level, this protocol combines SSE with COBRA's confidential replication layer. Confidential data and key material are protected through secret sharing across replicas, so no single server holds the full secret state or can execute the protocol alone. As in COBRA, the system tolerates Byzantine faults as long as `n > 3f + 1`.
+At a high level, this protocol combines SSE with COBRA's confidential replication layer. Confidential data and key material are protected through secret sharing across replicas, so no single server holds the full secret state or can execute the protocol alone. As in COBRA, the system tolerates Byzantine faults as long as `n >= 3f + 1`.
 
 ## Project Status
 

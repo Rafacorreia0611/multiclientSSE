@@ -4,13 +4,100 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DEFAULT_CONFIG="$ROOT_DIR/benchmarkSSE/config/search_latency_by_docs.properties"
-CONFIG_PATH="${1:-$DEFAULT_CONFIG}"
-if [[ "${CONFIG_PATH}" != /* ]]; then
-  CONFIG_PATH="$ROOT_DIR/$CONFIG_PATH"
-fi
-CONFIG_DIR="$(cd "$(dirname "$CONFIG_PATH")" && pwd)"
+CONFIG_PATH="$DEFAULT_CONFIG"
+CONFIG_DIR=""
+REPLICA_COUNT_OVERRIDE=""
+REPLICA_COUNT_SOURCE="config"
 
 REPLICA_PIDS=()
+
+usage() {
+  cat >&2 <<EOF
+Usage: $(basename "$0") [configPath] [--config PATH] [--replicas N]
+EOF
+}
+
+parse_args() {
+  local positional_config=""
+
+  while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+      --config)
+        if [[ "$#" -lt 2 || "$2" == --* ]]; then
+          echo "Missing value for --config." >&2
+          usage
+          exit 1
+        fi
+        if [[ -n "$positional_config" ]]; then
+          echo "Config path provided more than once." >&2
+          usage
+          exit 1
+        fi
+        positional_config="$2"
+        shift 2
+        ;;
+      --config=*)
+        if [[ -n "$positional_config" ]]; then
+          echo "Config path provided more than once." >&2
+          usage
+          exit 1
+        fi
+        positional_config="${1#--config=}"
+        if [[ -z "$positional_config" ]]; then
+          echo "Missing value for --config." >&2
+          usage
+          exit 1
+        fi
+        shift
+        ;;
+      --replicas)
+        if [[ "$#" -lt 2 || "$2" == --* ]]; then
+          echo "Missing value for --replicas." >&2
+          usage
+          exit 1
+        fi
+        REPLICA_COUNT_OVERRIDE="$2"
+        shift 2
+        ;;
+      --replicas=*)
+        REPLICA_COUNT_OVERRIDE="${1#--replicas=}"
+        if [[ -z "$REPLICA_COUNT_OVERRIDE" ]]; then
+          echo "Missing value for --replicas." >&2
+          usage
+          exit 1
+        fi
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      --*)
+        echo "Unknown argument: $1" >&2
+        usage
+        exit 1
+        ;;
+      *)
+        if [[ -n "$positional_config" ]]; then
+          echo "Unexpected positional argument: $1" >&2
+          usage
+          exit 1
+        fi
+        positional_config="$1"
+        shift
+        ;;
+    esac
+  done
+
+  if [[ -n "$positional_config" ]]; then
+    CONFIG_PATH="$positional_config"
+  fi
+
+  if [[ "${CONFIG_PATH}" != /* ]]; then
+    CONFIG_PATH="$ROOT_DIR/$CONFIG_PATH"
+  fi
+  CONFIG_DIR="$(cd "$(dirname "$CONFIG_PATH")" && pwd)"
+}
 
 get_property() {
   local key="$1"
@@ -60,21 +147,15 @@ ensure_command_exists() {
   fi
 }
 
-append_timestamp_to_path() {
+place_path_in_run_dir() {
   local path="$1"
-  local timestamp="$2"
-  local filename extension basename directory
+  local run_dir="$2"
+  local filename directory
 
   directory="$(dirname "$path")"
   filename="$(basename "$path")"
 
-  if [[ "$filename" == *.* ]]; then
-    extension=".${filename##*.}"
-    basename="${filename%.*}"
-    printf '%s/%s_%s%s\n' "$directory" "$basename" "$timestamp" "$extension"
-  else
-    printf '%s/%s_%s\n' "$directory" "$filename" "$timestamp"
-  fi
+  printf '%s/%s/%s\n' "$directory" "$run_dir" "$filename"
 }
 
 cleanup() {
@@ -99,6 +180,12 @@ load_config() {
   ensure_file_exists "$CONFIG_PATH"
 
   REPLICA_COUNT="$(get_property replicaCount)"
+  if [[ -n "$REPLICA_COUNT_OVERRIDE" ]]; then
+    REPLICA_COUNT="$REPLICA_COUNT_OVERRIDE"
+    REPLICA_COUNT_SOURCE="CLI override"
+  else
+    REPLICA_COUNT_SOURCE="config"
+  fi
   DEPLOY_CLIENT_COUNT="$(get_property deployClientCount)"
   POPULATE_CLIENT_DIR="$(get_property populateClientDir)"
   POPULATE_CLIENT_ID="$(get_property populateClientId)"
@@ -149,6 +236,8 @@ load_config() {
   ABS_SUMMARIZE_SCRIPT="$ROOT_DIR/benchmarkSSE/scripts/summarize_search_latency.py"
 
   validate_positive_integer "$REPLICA_COUNT" "replicaCount"
+  validate_minimum_replica_count "$REPLICA_COUNT"
+  calculate_fault_count
   validate_positive_integer "$DEPLOY_CLIENT_COUNT" "deployClientCount"
   validate_positive_integer "$POPULATE_CLIENT_ID" "populateClientId"
   validate_positive_integer "$POPULATE_BATCH_SIZE" "populateBatchSize"
@@ -157,18 +246,15 @@ load_config() {
   validate_boolean "$TIMESTAMP_OUTPUTS" "timestampOutputs"
 
   if [[ "$TIMESTAMP_OUTPUTS" == "true" ]]; then
-    RUN_TIMESTAMP="$(date +"$TIMESTAMP_FORMAT")"
-    ABS_OUTPUT_PATH="$(append_timestamp_to_path "$BASE_OUTPUT_PATH" "$RUN_TIMESTAMP")"
-    ABS_SUMMARY_PATH="$(append_timestamp_to_path "$BASE_SUMMARY_PATH" "$RUN_TIMESTAMP")"
-    ABS_MEAN_PLOT_PATH="$(append_timestamp_to_path "$BASE_MEAN_PLOT_PATH" "$RUN_TIMESTAMP")"
-    ABS_MEDIAN_PLOT_PATH="$(append_timestamp_to_path "$BASE_MEDIAN_PLOT_PATH" "$RUN_TIMESTAMP")"
+    RUN_TIMESTAMP="$(date +"$TIMESTAMP_FORMAT")_r${REPLICA_COUNT}_f${FAULT_COUNT}"
   else
-    RUN_TIMESTAMP="latest"
-    ABS_OUTPUT_PATH="$BASE_OUTPUT_PATH"
-    ABS_SUMMARY_PATH="$BASE_SUMMARY_PATH"
-    ABS_MEAN_PLOT_PATH="$BASE_MEAN_PLOT_PATH"
-    ABS_MEDIAN_PLOT_PATH="$BASE_MEDIAN_PLOT_PATH"
+    RUN_TIMESTAMP="latest_r${REPLICA_COUNT}_f${FAULT_COUNT}"
   fi
+
+  ABS_OUTPUT_PATH="$(place_path_in_run_dir "$BASE_OUTPUT_PATH" "$RUN_TIMESTAMP")"
+  ABS_SUMMARY_PATH="$(place_path_in_run_dir "$BASE_SUMMARY_PATH" "$RUN_TIMESTAMP")"
+  ABS_MEAN_PLOT_PATH="$(place_path_in_run_dir "$BASE_MEAN_PLOT_PATH" "$RUN_TIMESTAMP")"
+  ABS_MEDIAN_PLOT_PATH="$(place_path_in_run_dir "$BASE_MEDIAN_PLOT_PATH" "$RUN_TIMESTAMP")"
 
   ABS_LOG_DIR="$ROOT_DIR/benchmarkSSE/results/logs/$RUN_TIMESTAMP"
   RUNTIME_CONFIG_PATH="$ABS_LOG_DIR/runtime_search_latency_by_docs.properties"
@@ -182,6 +268,19 @@ validate_positive_integer() {
     echo "Property $label must be a positive integer." >&2
     exit 1
   fi
+}
+
+validate_minimum_replica_count() {
+  local replica_count="$1"
+
+  if [[ "$replica_count" -lt 4 ]]; then
+    echo "replicaCount must be at least 4 for this BFT benchmark." >&2
+    exit 1
+  fi
+}
+
+calculate_fault_count() {
+  FAULT_COUNT=$(((REPLICA_COUNT - 1) / 3))
 }
 
 validate_boolean() {
@@ -216,13 +315,21 @@ prepare_directories() {
   mkdir -p "$(dirname "$ABS_OUTPUT_PATH")"
   mkdir -p "$(dirname "$ABS_SUMMARY_PATH")"
   mkdir -p "$(dirname "$ABS_MEAN_PLOT_PATH")"
+  mkdir -p "$(dirname "$ABS_MEDIAN_PLOT_PATH")"
 }
 
 write_runtime_config() {
   echo "Writing runtime benchmark config..."
   {
+    printf '# Runtime benchmark metadata generated by %s\n' "$(basename "$0")"
+    printf 'runtimeReplicaCount=%s\n' "$REPLICA_COUNT"
+    printf 'runtimeFaultCount=%s\n' "$FAULT_COUNT"
+    printf 'runtimeReplicaCountSource=%s\n' "$REPLICA_COUNT_SOURCE"
     while IFS= read -r line; do
       case "$line" in
+        replicaCount=*)
+          printf 'replicaCount=%s\n' "$REPLICA_COUNT"
+          ;;
         inputPath=*)
           printf 'inputPath=%s\n' "$ABS_DATASET_PATH"
           ;;
@@ -285,11 +392,96 @@ generate_dataset() {
 }
 
 prepare_local_deploy() {
-  echo "Preparing local deployment..."
+  echo "Preparing clean local deployment..."
   (
     cd "$ROOT_DIR"
-    ./gradlew localDeploy -Pservers="$REPLICA_COUNT" -Pclients="$DEPLOY_CLIENT_COUNT"
+    ./gradlew clean localDeploy -Pservers="$REPLICA_COUNT" -Pclients="$DEPLOY_CLIENT_COUNT"
   )
+}
+
+initial_view() {
+  local replica_id
+  local view=""
+
+  for (( replica_id = 0; replica_id < REPLICA_COUNT; replica_id++ )); do
+    if [[ -n "$view" ]]; then
+      view+=","
+    fi
+    view+="$replica_id"
+  done
+
+  printf '%s\n' "$view"
+}
+
+write_local_system_config() {
+  local path="$1"
+  local view="$2"
+  local tmp_path="${path}.tmp"
+
+  awk \
+    -v replica_count="$REPLICA_COUNT" \
+    -v fault_count="$FAULT_COUNT" \
+    -v initial_view="$view" \
+    '
+      /^system\.servers\.num[[:space:]]*=/ {
+        print "system.servers.num = " replica_count
+        next
+      }
+      /^system\.servers\.f[[:space:]]*=/ {
+        print "system.servers.f = " fault_count
+        next
+      }
+      /^system\.initial\.view[[:space:]]*=/ {
+        print "system.initial.view = " initial_view
+        next
+      }
+      { print }
+    ' "$path" > "$tmp_path"
+  mv "$tmp_path" "$path"
+}
+
+write_local_hosts_config() {
+  local path="$1"
+  local tmp_path="${path}.tmp"
+  local replica_id client_port server_port
+
+  {
+    printf '# This hosts.config was generated by %s for the local benchmark deploy.\n' "$(basename "$0")"
+    printf '#server id, address and port (the ids from 0 to n-1 are the service replicas)\n'
+    for (( replica_id = 0; replica_id < REPLICA_COUNT; replica_id++ )); do
+      client_port=$((11000 + replica_id * 10))
+      server_port=$((client_port + 1))
+      printf '%s 127.0.0.1 %s %s\n' "$replica_id" "$client_port" "$server_port"
+    done
+    printf '\n'
+    printf '7001 127.0.0.1 11100\n'
+  } > "$tmp_path"
+  mv "$tmp_path" "$path"
+}
+
+configure_local_deploy() {
+  local view
+  local deploy_dir
+  local deploy_index
+
+  echo "Configuring local deployment for $REPLICA_COUNT replicas (f=$FAULT_COUNT, source=$REPLICA_COUNT_SOURCE)..."
+  view="$(initial_view)"
+
+  for (( deploy_index = 0; deploy_index < REPLICA_COUNT; deploy_index++ )); do
+    deploy_dir="$ROOT_DIR/build/local/rep${deploy_index}"
+    ensure_file_exists "$deploy_dir/config/system.config"
+    ensure_file_exists "$deploy_dir/config/hosts.config"
+    write_local_system_config "$deploy_dir/config/system.config" "$view"
+    write_local_hosts_config "$deploy_dir/config/hosts.config"
+  done
+
+  for (( deploy_index = 0; deploy_index < DEPLOY_CLIENT_COUNT; deploy_index++ )); do
+    deploy_dir="$ROOT_DIR/build/local/cli${deploy_index}"
+    ensure_file_exists "$deploy_dir/config/system.config"
+    ensure_file_exists "$deploy_dir/config/hosts.config"
+    write_local_system_config "$deploy_dir/config/system.config" "$view"
+    write_local_hosts_config "$deploy_dir/config/hosts.config"
+  done
 }
 
 start_replicas() {
@@ -470,12 +662,14 @@ verify_plots() {
 }
 
 main() {
+  parse_args "$@"
   load_config
   prepare_directories
   write_runtime_config
   generate_dataset
-  prepare_local_deploy
   kill_existing_replicas
+  prepare_local_deploy
+  configure_local_deploy
   start_replicas
   wait_for_replicas_ready
   run_populate

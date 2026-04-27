@@ -14,7 +14,7 @@ build
 datasets/raw/
 datasets/processed/
 
-# Ignore generated benchmark artifacts, but keep benchmark configs/scripts
+# Ignore generated benchmark artifacts, including per-run result/log/plot folders.
 benchmarkSSE/datasets/
 benchmarkSSE/results/
 benchmarkSSE/plots/
