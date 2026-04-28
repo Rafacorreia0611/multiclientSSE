@@ -179,6 +179,8 @@ kill_existing_replicas() {
 load_config() {
   ensure_file_exists "$CONFIG_PATH"
 
+  DATASET_TYPE="$(get_property datasetType)"
+
   REPLICA_COUNT="$(get_property replicaCount)"
   if [[ -n "$REPLICA_COUNT_OVERRIDE" ]]; then
     REPLICA_COUNT="$REPLICA_COUNT_OVERRIDE"
@@ -191,11 +193,6 @@ load_config() {
   POPULATE_CLIENT_ID="$(get_property populateClientId)"
   POPULATE_BATCH_SIZE="$(get_property populateBatchSize)"
   BENCHMARK_CLIENT_DIR="$(get_property benchmarkClientDir)"
-
-  PROCESSOR_MODE="$(get_property processorMode)"
-  PROCESSOR_OUTPUT_PATH="$(get_property processorOutputPath)"
-  PROCESSOR_BUCKETS="$(get_property processorBuckets)"
-  PROCESSOR_SAMPLES_PER_BUCKET="$(get_property processorSamplesPerBucket)"
 
   SCENARIO="$(get_property scenario)"
   CLIENT_ID="$(get_property clientId)"
@@ -210,22 +207,7 @@ load_config() {
   BUCKETS="$(get_property buckets)"
 
   EXPECTED_SAMPLES_PER_BUCKET=$((WARMUP_PER_BUCKET + MEASUREMENTS_PER_BUCKET))
-  if [[ "$PROCESSOR_SAMPLES_PER_BUCKET" -ne "$EXPECTED_SAMPLES_PER_BUCKET" ]]; then
-    echo "processorSamplesPerBucket ($PROCESSOR_SAMPLES_PER_BUCKET) must equal warmupPerBucket + measurementsPerBucket ($EXPECTED_SAMPLES_PER_BUCKET)" >&2
-    exit 1
-  fi
 
-  if [[ "$PROCESSOR_OUTPUT_PATH" != "$INPUT_PATH" ]]; then
-    echo "processorOutputPath ($PROCESSOR_OUTPUT_PATH) must match inputPath ($INPUT_PATH)" >&2
-    exit 1
-  fi
-
-  if [[ "$PROCESSOR_BUCKETS" != "$BUCKETS" ]]; then
-    echo "processorBuckets ($PROCESSOR_BUCKETS) must match buckets ($BUCKETS)" >&2
-    exit 1
-  fi
-
-  ABS_PROCESSOR_OUTPUT_PATH="$(resolve_config_path "$PROCESSOR_OUTPUT_PATH")"
   ABS_DATASET_PATH="$(resolve_config_path "$INPUT_PATH")"
   BASE_OUTPUT_PATH="$(resolve_config_path "$OUTPUT_PATH")"
   BASE_SUMMARY_PATH="$(resolve_config_path "$SUMMARY_OUTPUT_PATH")"
@@ -233,7 +215,9 @@ load_config() {
   BASE_MEDIAN_PLOT_PATH="$(resolve_config_path "$MEDIAN_PLOT_OUTPUT_PATH")"
   ABS_GNUPLOT_SCRIPT="$ROOT_DIR/benchmarkSSE/gnuplot/search_latency_by_docs_mean_median.gp"
   ABS_SUMMARIZE_SCRIPT="$ROOT_DIR/benchmarkSSE/scripts/summarize_search_latency.py"
+  ABS_SYNTHETIC_DATASET_SCRIPT="$ROOT_DIR/benchmarkSSE/scripts/syntheticDataset.py"
 
+  validate_dataset_config
   validate_positive_integer "$REPLICA_COUNT" "replicaCount"
   validate_minimum_replica_count "$REPLICA_COUNT"
   calculate_fault_count
@@ -261,12 +245,181 @@ load_config() {
   RUNTIME_CONFIG_PATH="$ABS_LOG_DIR/runtime_search_latency_by_docs.properties"
 }
 
+validate_dataset_config() {
+  case "$DATASET_TYPE" in
+    enron)
+      load_enron_dataset_config
+      ;;
+    synthetic)
+      load_synthetic_dataset_config
+      ;;
+    *)
+      echo "datasetType must be either 'enron' or 'synthetic'." >&2
+      exit 1
+      ;;
+  esac
+}
+
+load_enron_dataset_config() {
+  PROCESSOR_MODE="$(get_property processorMode)"
+  PROCESSOR_OUTPUT_PATH="$(get_property processorOutputPath)"
+  PROCESSOR_BUCKETS="$(get_property processorBuckets)"
+  PROCESSOR_SAMPLES_PER_BUCKET="$(get_property processorSamplesPerBucket)"
+
+  validate_positive_integer "$PROCESSOR_SAMPLES_PER_BUCKET" "processorSamplesPerBucket"
+  if [[ "$PROCESSOR_SAMPLES_PER_BUCKET" -ne "$EXPECTED_SAMPLES_PER_BUCKET" ]]; then
+    echo "processorSamplesPerBucket ($PROCESSOR_SAMPLES_PER_BUCKET) must equal warmupPerBucket + measurementsPerBucket ($EXPECTED_SAMPLES_PER_BUCKET)" >&2
+    exit 1
+  fi
+
+  if [[ "$PROCESSOR_OUTPUT_PATH" != "$INPUT_PATH" ]]; then
+    echo "processorOutputPath ($PROCESSOR_OUTPUT_PATH) must match inputPath ($INPUT_PATH)" >&2
+    exit 1
+  fi
+
+  if [[ "$PROCESSOR_BUCKETS" != "$BUCKETS" ]]; then
+    echo "processorBuckets ($PROCESSOR_BUCKETS) must match buckets ($BUCKETS)" >&2
+    exit 1
+  fi
+
+  ABS_PROCESSOR_OUTPUT_PATH="$(resolve_config_path "$PROCESSOR_OUTPUT_PATH")"
+  EXPECTED_DATASET_LINES=$((PROCESSOR_SAMPLES_PER_BUCKET * $(csv_item_count "$PROCESSOR_BUCKETS")))
+}
+
+load_synthetic_dataset_config() {
+  SYNTHETIC_OUTPUT_PATH="$(get_property syntheticOutputPath)"
+  SYNTHETIC_KEYWORDS_PER_DOC_COUNT="$(get_property syntheticKeywordsPerDocCount)"
+  SYNTHETIC_DOC_COUNTS="$(get_property syntheticDocCounts)"
+  SYNTHETIC_SEED="$(get_property syntheticSeed)"
+
+  validate_positive_integer "$SYNTHETIC_KEYWORDS_PER_DOC_COUNT" "syntheticKeywordsPerDocCount"
+  validate_integer "$SYNTHETIC_SEED" "syntheticSeed"
+  validate_synthetic_doc_counts
+
+  if [[ "$SYNTHETIC_KEYWORDS_PER_DOC_COUNT" -ne "$EXPECTED_SAMPLES_PER_BUCKET" ]]; then
+    echo "syntheticKeywordsPerDocCount ($SYNTHETIC_KEYWORDS_PER_DOC_COUNT) must equal warmupPerBucket + measurementsPerBucket ($EXPECTED_SAMPLES_PER_BUCKET)" >&2
+    exit 1
+  fi
+
+  if [[ "$SYNTHETIC_OUTPUT_PATH" != "$INPUT_PATH" ]]; then
+    echo "syntheticOutputPath ($SYNTHETIC_OUTPUT_PATH) must match inputPath ($INPUT_PATH)" >&2
+    exit 1
+  fi
+
+  ABS_SYNTHETIC_OUTPUT_PATH="$(resolve_config_path "$SYNTHETIC_OUTPUT_PATH")"
+  EXPECTED_DATASET_LINES=$((SYNTHETIC_KEYWORDS_PER_DOC_COUNT * $(csv_item_count "$SYNTHETIC_DOC_COUNTS")))
+}
+
 validate_positive_integer() {
   local value="$1"
   local label="$2"
 
   if ! [[ "$value" =~ ^[0-9]+$ ]] || [[ "$value" -le 0 ]]; then
     echo "Property $label must be a positive integer." >&2
+    exit 1
+  fi
+}
+
+validate_integer() {
+  local value="$1"
+  local label="$2"
+
+  if ! [[ "$value" =~ ^-?[0-9]+$ ]]; then
+    echo "Property $label must be an integer." >&2
+    exit 1
+  fi
+}
+
+csv_item_count() {
+  local raw_list="$1"
+  local compact_list
+
+  compact_list="$(normalize_csv_list "$raw_list")"
+  if [[ -z "$compact_list" ]]; then
+    printf '0\n'
+    return
+  fi
+
+  printf '%s\n' "$compact_list" | awk -F',' '{print NF}'
+}
+
+normalize_csv_list() {
+  local raw_list="$1"
+  printf '%s' "$raw_list" | tr -d '[:space:]'
+}
+
+validate_synthetic_doc_counts() {
+  local compact_doc_counts compact_buckets doc_count bucket bucket_min bucket_max
+  local matching_bucket found_doc_count
+
+  compact_doc_counts="$(normalize_csv_list "$SYNTHETIC_DOC_COUNTS")"
+  compact_buckets="$(normalize_csv_list "$BUCKETS")"
+
+  if [[ -z "$compact_doc_counts" ]]; then
+    echo "syntheticDocCounts cannot be empty." >&2
+    exit 1
+  fi
+  if [[ -z "$compact_buckets" ]]; then
+    echo "buckets cannot be empty." >&2
+    exit 1
+  fi
+
+  IFS=',' read -r -a SYNTHETIC_DOC_COUNT_VALUES <<< "$compact_doc_counts"
+  IFS=',' read -r -a BUCKET_VALUES <<< "$compact_buckets"
+
+  for doc_count in "${SYNTHETIC_DOC_COUNT_VALUES[@]}"; do
+    validate_positive_integer "$doc_count" "syntheticDocCounts"
+    matching_bucket=0
+    for bucket in "${BUCKET_VALUES[@]}"; do
+      parse_bucket "$bucket"
+      if (( doc_count >= bucket_min && doc_count <= bucket_max )); then
+        matching_bucket=1
+        break
+      fi
+    done
+
+    if [[ "$matching_bucket" -eq 0 ]]; then
+      echo "syntheticDocCounts value $doc_count does not fit any configured bucket ($BUCKETS)." >&2
+      exit 1
+    fi
+  done
+
+  for bucket in "${BUCKET_VALUES[@]}"; do
+    parse_bucket "$bucket"
+    found_doc_count=0
+    for doc_count in "${SYNTHETIC_DOC_COUNT_VALUES[@]}"; do
+      if (( doc_count >= bucket_min && doc_count <= bucket_max )); then
+        found_doc_count=1
+        break
+      fi
+    done
+
+    if [[ "$found_doc_count" -eq 0 ]]; then
+      echo "Bucket $bucket has no matching syntheticDocCounts value." >&2
+      exit 1
+    fi
+  done
+
+  SYNTHETIC_DOC_COUNTS="$compact_doc_counts"
+}
+
+parse_bucket() {
+  local bucket="$1"
+  local parts
+
+  if [[ "$bucket" != *:* || "$bucket" == *:*:* ]]; then
+    echo "Invalid bucket definition: $bucket" >&2
+    exit 1
+  fi
+
+  IFS=':' read -r -a parts <<< "$bucket"
+  bucket_min="${parts[0]}"
+  bucket_max="${parts[1]}"
+  validate_positive_integer "$bucket_min" "bucket min"
+  validate_positive_integer "$bucket_max" "bucket max"
+
+  if (( bucket_min > bucket_max )); then
+    echo "Invalid bucket definition with min greater than max: $bucket" >&2
     exit 1
   fi
 }
@@ -357,12 +510,9 @@ write_runtime_config() {
 }
 
 validate_existing_dataset() {
-  local expected_total_lines
-
   ensure_non_empty_file "$ABS_DATASET_PATH"
 
-  expected_total_lines=$((PROCESSOR_SAMPLES_PER_BUCKET * $(printf '%s' "$PROCESSOR_BUCKETS" | awk -F',' '{print NF}')))
-  if [[ "$(wc -l < "$ABS_DATASET_PATH")" -ne "$expected_total_lines" ]]; then
+  if [[ "$(wc -l < "$ABS_DATASET_PATH")" -ne "$EXPECTED_DATASET_LINES" ]]; then
     echo "Existing dataset line count does not match expected total entries." >&2
     return 1
   fi
@@ -376,7 +526,27 @@ generate_dataset() {
     return
   fi
 
-  echo "Generating benchmark dataset..."
+  case "$DATASET_TYPE" in
+    enron)
+      generate_enron_dataset
+      ;;
+    synthetic)
+      generate_synthetic_dataset
+      ;;
+    *)
+      echo "datasetType must be either 'enron' or 'synthetic'." >&2
+      exit 1
+      ;;
+  esac
+
+  if ! validate_existing_dataset; then
+    echo "Generated dataset does not match the configured benchmark buckets." >&2
+    exit 1
+  fi
+}
+
+generate_enron_dataset() {
+  echo "Generating Enron benchmark dataset..."
   (
     cd "$ROOT_DIR"
     ./gradlew processEnronDataset \
@@ -385,11 +555,21 @@ generate_dataset() {
       -PbucketSpec="$PROCESSOR_BUCKETS" \
       -PsamplesPerBucket="$PROCESSOR_SAMPLES_PER_BUCKET"
   )
+}
 
-  if ! validate_existing_dataset; then
-    echo "Generated dataset does not match the configured benchmark buckets." >&2
-    exit 1
-  fi
+generate_synthetic_dataset() {
+  ensure_command_exists python3
+  ensure_file_exists "$ABS_SYNTHETIC_DATASET_SCRIPT"
+
+  echo "Generating synthetic benchmark dataset..."
+  (
+    cd "$ROOT_DIR"
+    python3 "$ABS_SYNTHETIC_DATASET_SCRIPT" \
+      --output "$ABS_SYNTHETIC_OUTPUT_PATH" \
+      --keywords-per-doc-count "$SYNTHETIC_KEYWORDS_PER_DOC_COUNT" \
+      --doc-counts "$SYNTHETIC_DOC_COUNTS" \
+      --seed "$SYNTHETIC_SEED"
+  )
 }
 
 prepare_local_deploy() {

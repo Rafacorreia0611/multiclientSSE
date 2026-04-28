@@ -12,10 +12,10 @@ import sse.benchmark.BenchmarkConfig;
 import sse.benchmark.BenchmarkOperation;
 import sse.benchmark.BenchmarkResultWriter;
 import sse.benchmark.BenchmarkScenario;
-import sse.dataset.enron.KeywordDocIdsEntry;
+import sse.dataset.KeywordDocIdsEntry;
+import sse.dataset.KeywordDocIdsReader;
 import sse.demo.client.ConfidentialClientAdapter;
 import sse.demo.client.SseClientHandler;
-import sse.populatedb.EnronReaderService;
 import vss.facade.SecretSharingException;
 
 public final class SearchLatencyByDocsScenario implements BenchmarkScenario {
@@ -62,17 +62,17 @@ public final class SearchLatencyByDocsScenario implements BenchmarkScenario {
     }
 
     private List<KeywordDocIdsEntry> loadEntries(String inputPath) {
-        EnronReaderService readerService = new EnronReaderService();
+        KeywordDocIdsReader datasetReader = new KeywordDocIdsReader();
         Path path = Paths.get(inputPath);
         List<KeywordDocIdsEntry> entries = new ArrayList<KeywordDocIdsEntry>();
 
-        java.io.BufferedReader reader = readerService.openReader(path);
+        java.io.BufferedReader reader = datasetReader.openReader(path);
         try {
             String line;
             long lineNumber = 0L;
             while ((line = reader.readLine()) != null) {
                 lineNumber++;
-                KeywordDocIdsEntry entry = readerService.parseEntry(line, lineNumber);
+                KeywordDocIdsEntry entry = datasetReader.parseEntry(line, lineNumber);
                 if (entry != null) {
                     entries.add(entry);
                 }

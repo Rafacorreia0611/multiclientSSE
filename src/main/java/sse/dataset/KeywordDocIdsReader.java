@@ -1,4 +1,4 @@
-package sse.populatedb;
+package sse.dataset;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -9,13 +9,11 @@ import java.nio.file.Path;
 import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
 
-import sse.dataset.enron.KeywordDocIdsEntry;
-
-public final class EnronReaderService {
+public final class KeywordDocIdsReader {
 
     private final Gson gson;
 
-    public EnronReaderService() {
+    public KeywordDocIdsReader() {
         this.gson = new Gson();
     }
 

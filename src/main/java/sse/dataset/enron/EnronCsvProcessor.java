@@ -22,6 +22,8 @@ import java.util.Map;
 
 import com.google.gson.Gson;
 
+import sse.dataset.KeywordDocIdsEntry;
+
 public final class EnronCsvProcessor {
 
     private static final Path DEFAULT_INPUT = Paths.get("datasets", "raw", "enron", "emails.csv");

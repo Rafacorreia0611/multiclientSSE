@@ -7,6 +7,10 @@ build
 # Ignore VS Code settings directory
 .vscode
 
+# Ignore Python bytecode/cache files
+__pycache__/
+*.pyc
+
 # Ignore Jenv settings directory
 .java-version
 

@@ -1,4 +1,4 @@
-package sse.dataset.enron;
+package sse.dataset;
 
 import java.util.ArrayList;
 import java.util.Collections;

@@ -8,7 +8,8 @@ import java.util.List;
 
 import javax.crypto.SecretKey;
 
-import sse.dataset.enron.KeywordDocIdsEntry;
+import sse.dataset.KeywordDocIdsEntry;
+import sse.dataset.KeywordDocIdsReader;
 import sse.demo.client.ConfidentialClientAdapter;
 import sse.domain.EncryptedUpdateTuple;
 import sse.domain.InitializationMaterial;
@@ -23,7 +24,7 @@ public final class PopulateDBHandler {
 
     private final ConfidentialClientAdapter adapter;
     private final SseClientFacade sseClientFacade;
-    private final EnronReaderService enronReaderService;
+    private final KeywordDocIdsReader datasetReader;
     private final int batchSize;
 
     public PopulateDBHandler(ConfidentialClientAdapter adapter) {
@@ -39,7 +40,7 @@ public final class PopulateDBHandler {
         }
         this.adapter = adapter;
         this.sseClientFacade = new SseClientFacade();
-        this.enronReaderService = new EnronReaderService();
+        this.datasetReader = new KeywordDocIdsReader();
         this.batchSize = batchSize;
     }
 
@@ -63,13 +64,13 @@ public final class PopulateDBHandler {
         long startTimeNanos = System.nanoTime();
         long lastProgressLogNanos = startTimeNanos;
 
-        try (BufferedReader reader = enronReaderService.openReader(inputPath)) {
+        try (BufferedReader reader = datasetReader.openReader(inputPath)) {
             String line;
             long lineNumber = 0L;
 
             while ((line = reader.readLine()) != null) {
                 lineNumber++;
-                KeywordDocIdsEntry entry = enronReaderService.parseEntry(line, lineNumber);
+                KeywordDocIdsEntry entry = datasetReader.parseEntry(line, lineNumber);
                 if (entry == null) {
                     continue;
                 }
