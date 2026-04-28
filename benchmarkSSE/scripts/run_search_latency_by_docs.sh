@@ -10,6 +10,7 @@ REPLICA_COUNT_OVERRIDE=""
 REPLICA_COUNT_SOURCE="config"
 
 REPLICA_PIDS=()
+CLEANUP_DONE=0
 
 usage() {
   cat >&2 <<EOF
@@ -158,21 +159,67 @@ place_path_in_run_dir() {
   printf '%s/%s/%s\n' "$directory" "$run_dir" "$filename"
 }
 
-cleanup() {
+terminate_tracked_replicas() {
   local pid
+
   for pid in "${REPLICA_PIDS[@]:-}"; do
     if kill -0 "$pid" 2>/dev/null; then
       kill "$pid" 2>/dev/null || true
-      wait "$pid" 2>/dev/null || true
     fi
   done
+
+  sleep 1
+
+  for pid in "${REPLICA_PIDS[@]:-}"; do
+    if kill -0 "$pid" 2>/dev/null; then
+      kill -9 "$pid" 2>/dev/null || true
+    fi
+    wait "$pid" 2>/dev/null || true
+  done
+}
+
+terminate_local_benchmark_processes() {
+  local local_deploy_pattern
+
+  local_deploy_pattern="$ROOT_DIR/build/local/.*/pairing/lib"
+
+  pkill -TERM -f "${local_deploy_pattern}.*sse.benchmark.BenchmarkClient" 2>/dev/null || true
+  pkill -TERM -f "${local_deploy_pattern}.*sse.populatedb.PopulateDB" 2>/dev/null || true
+  pkill -TERM -f "${local_deploy_pattern}.*sse.demo.server.Server" 2>/dev/null || true
+  pkill -TERM -f "$ROOT_DIR/build/local/.*/smartrun.sh" 2>/dev/null || true
+
+  sleep 1
+
+  pkill -KILL -f "${local_deploy_pattern}.*sse.benchmark.BenchmarkClient" 2>/dev/null || true
+  pkill -KILL -f "${local_deploy_pattern}.*sse.populatedb.PopulateDB" 2>/dev/null || true
+  pkill -KILL -f "${local_deploy_pattern}.*sse.demo.server.Server" 2>/dev/null || true
+  pkill -KILL -f "$ROOT_DIR/build/local/.*/smartrun.sh" 2>/dev/null || true
+}
+
+cleanup() {
+  local exit_status=$?
+
+  trap - EXIT INT TERM
+  if [[ "$CLEANUP_DONE" -eq 1 ]]; then
+    exit "$exit_status"
+  fi
+
+  CLEANUP_DONE=1
+  if [[ "${ABS_LOG_DIR:-}" != "" ]]; then
+    echo "Cleaning up local benchmark processes..."
+  fi
+
+  terminate_tracked_replicas
+  terminate_local_benchmark_processes
+
+  exit "$exit_status"
 }
 
 trap cleanup EXIT INT TERM
 
 kill_existing_replicas() {
-  echo "Stopping any existing replica processes..."
-  pkill -f "sse.demo.server.Server" 2>/dev/null || true
+  echo "Stopping any existing local benchmark processes..."
+  terminate_local_benchmark_processes
   sleep 1
 }
 
