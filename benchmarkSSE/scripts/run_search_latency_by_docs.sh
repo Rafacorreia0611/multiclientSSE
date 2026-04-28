@@ -202,7 +202,6 @@ load_config() {
   WARMUP_PER_BUCKET="$(get_property warmupPerBucket)"
   MEASUREMENTS_PER_BUCKET="$(get_property measurementsPerBucket)"
   TIMESTAMP_OUTPUTS="$(get_property timestampOutputs)"
-  TIMESTAMP_FORMAT="$(get_property timestampFormat)"
   INPUT_PATH="$(get_property inputPath)"
   OUTPUT_PATH="$(get_property outputPath)"
   SUMMARY_OUTPUT_PATH="$(get_property summaryOutputPath)"
@@ -246,17 +245,19 @@ load_config() {
   validate_boolean "$TIMESTAMP_OUTPUTS" "timestampOutputs"
 
   if [[ "$TIMESTAMP_OUTPUTS" == "true" ]]; then
-    RUN_TIMESTAMP="$(date +"$TIMESTAMP_FORMAT")_r${REPLICA_COUNT}_f${FAULT_COUNT}"
+    RUN_DATE="$(date +%d_%m_%Y)"
+    RUN_NAME="$(date +%H_%M_%S)_r${REPLICA_COUNT}_f${FAULT_COUNT}"
   else
-    RUN_TIMESTAMP="latest_r${REPLICA_COUNT}_f${FAULT_COUNT}"
+    RUN_DATE="$(date +%d_%m_%Y)"
+    RUN_NAME="latest_r${REPLICA_COUNT}_f${FAULT_COUNT}"
   fi
 
-  ABS_OUTPUT_PATH="$(place_path_in_run_dir "$BASE_OUTPUT_PATH" "$RUN_TIMESTAMP")"
-  ABS_SUMMARY_PATH="$(place_path_in_run_dir "$BASE_SUMMARY_PATH" "$RUN_TIMESTAMP")"
-  ABS_MEAN_PLOT_PATH="$(place_path_in_run_dir "$BASE_MEAN_PLOT_PATH" "$RUN_TIMESTAMP")"
-  ABS_MEDIAN_PLOT_PATH="$(place_path_in_run_dir "$BASE_MEDIAN_PLOT_PATH" "$RUN_TIMESTAMP")"
+  ABS_OUTPUT_PATH="$(place_path_in_run_dir "$BASE_OUTPUT_PATH" "$RUN_DATE/$RUN_NAME")"
+  ABS_SUMMARY_PATH="$(place_path_in_run_dir "$BASE_SUMMARY_PATH" "$RUN_DATE/$RUN_NAME")"
+  ABS_MEAN_PLOT_PATH="$(place_path_in_run_dir "$BASE_MEAN_PLOT_PATH" "$RUN_DATE/$RUN_NAME")"
+  ABS_MEDIAN_PLOT_PATH="$(place_path_in_run_dir "$BASE_MEDIAN_PLOT_PATH" "$RUN_DATE/$RUN_NAME")"
 
-  ABS_LOG_DIR="$ROOT_DIR/benchmarkSSE/results/logs/$RUN_TIMESTAMP"
+  ABS_LOG_DIR="$ROOT_DIR/benchmarkSSE/results/logs/$RUN_DATE/$RUN_NAME"
   RUNTIME_CONFIG_PATH="$ABS_LOG_DIR/runtime_search_latency_by_docs.properties"
 }
 

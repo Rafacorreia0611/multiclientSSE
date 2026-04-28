@@ -1,5 +1,5 @@
 if (!exists("input_path")) {
-    input_path = "benchmarkSSE/results/search_latency_by_docs_summary.tsv"
+    input_path = "benchmarkSSE/results/data/search_latency_by_docs_summary.tsv"
 }
 
 if (!exists("mean_output_path")) {

@@ -6,7 +6,6 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DEFAULT_CONFIG="$ROOT_DIR/benchmarkSSE/config/search_latency_by_docs.properties"
 CONFIG_PATH="$DEFAULT_CONFIG"
 REPLICA_LIST="4,7,10,13"
-TIMESTAMP_FORMAT="%Y%m%d_%H%M%S"
 
 DOCS_RUNNER="$ROOT_DIR/benchmarkSSE/scripts/run_search_latency_by_docs.sh"
 AGGREGATE_SCRIPT="$ROOT_DIR/benchmarkSSE/scripts/aggregate_search_latency_by_replicas.py"
@@ -114,11 +113,11 @@ fault_count_for() {
 }
 
 prepare_outputs() {
-  SWEEP_TIMESTAMP="$(date +"$TIMESTAMP_FORMAT")"
-  SWEEP_NAME="replica_sweep_${SWEEP_TIMESTAMP}"
-  SWEEP_RESULTS_DIR="$ROOT_DIR/benchmarkSSE/results/$SWEEP_NAME"
-  SWEEP_PLOTS_DIR="$ROOT_DIR/benchmarkSSE/plots/$SWEEP_NAME"
-  SWEEP_LOG_DIR="$ROOT_DIR/benchmarkSSE/results/logs/$SWEEP_NAME"
+  SWEEP_DATE="$(date +%d_%m_%Y)"
+  SWEEP_NAME="$(date +%H_%M_%S)_replica_sweep"
+  SWEEP_RESULTS_DIR="$ROOT_DIR/benchmarkSSE/results/data/$SWEEP_DATE/$SWEEP_NAME"
+  SWEEP_PLOTS_DIR="$ROOT_DIR/benchmarkSSE/plots/$SWEEP_DATE/$SWEEP_NAME"
+  SWEEP_LOG_DIR="$ROOT_DIR/benchmarkSSE/results/logs/$SWEEP_DATE/$SWEEP_NAME"
   SWEEP_SUMMARY_PATH="$SWEEP_RESULTS_DIR/search_latency_by_replicas_summary.tsv"
   SWEEP_LOG_PATH="$SWEEP_LOG_DIR/run_search_latency_by_replicas.log"
 
@@ -132,8 +131,8 @@ latest_summary_for_run() {
   local summary_path
 
   summary_path="$(
-    find "$ROOT_DIR/benchmarkSSE/results" \
-      -maxdepth 2 \
+    find "$ROOT_DIR/benchmarkSSE/results/data" \
+      -maxdepth 3 \
       -type f \
       -name "search_latency_by_docs_summary.tsv" \
       -newer "$marker_path" \
@@ -156,7 +155,7 @@ run_one_benchmark() {
   local fault_count marker_path summary_path
 
   fault_count="$(fault_count_for "$replica_count")"
-  marker_path="$(mktemp "$ROOT_DIR/benchmarkSSE/results/.replica_sweep_marker.XXXXXX")"
+  marker_path="$(mktemp "$ROOT_DIR/benchmarkSSE/results/data/.replica_sweep_marker.XXXXXX")"
   {
     echo
     echo "===== Running search latency benchmark with replicaCount=$replica_count f=$fault_count ====="

@@ -70,7 +70,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--input",
-        default="benchmarkSSE/results/search_latency_by_docs.csv",
+        default="benchmarkSSE/results/data/search_latency_by_docs.csv",
         help="Path to the raw benchmark CSV.",
     )
     parser.add_argument(
