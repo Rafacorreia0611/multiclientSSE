@@ -24,6 +24,24 @@ die() {
   exit 1
 }
 
+ssh_remote() {
+  ssh -n \
+    -o BatchMode=yes \
+    -o ConnectTimeout="${QUINTA_SSH_CONNECT_TIMEOUT_SECONDS:-10}" \
+    -o ServerAliveInterval="${QUINTA_SSH_SERVER_ALIVE_INTERVAL_SECONDS:-5}" \
+    -o ServerAliveCountMax="${QUINTA_SSH_SERVER_ALIVE_COUNT_MAX:-2}" \
+    "$@"
+}
+
+scp_remote() {
+  scp -q \
+    -o BatchMode=yes \
+    -o ConnectTimeout="${QUINTA_SSH_CONNECT_TIMEOUT_SECONDS:-10}" \
+    -o ServerAliveInterval="${QUINTA_SSH_SERVER_ALIVE_INTERVAL_SECONDS:-5}" \
+    -o ServerAliveCountMax="${QUINTA_SSH_SERVER_ALIVE_COUNT_MAX:-2}" \
+    "$@"
+}
+
 parse_args() {
   while [[ "$#" -gt 0 ]]; do
     case "$1" in
@@ -352,17 +370,17 @@ copy_benchmark_inputs() {
   write_local_runtime_config "$REMOTE_DATASET_PATH" "$REMOTE_OUTPUT_PATH"
 
   for host in "$populate_host" "$benchmark_host"; do
-    ssh "$host" "mkdir -p '$remote_base/input' '$remote_base/results' '$remote_base/logs'"
-    scp -q "$ABS_DATASET_PATH" "$host:$REMOTE_DATASET_PATH"
+    ssh_remote "$host" "mkdir -p '$remote_base/input' '$remote_base/results' '$remote_base/logs'"
+    scp_remote "$ABS_DATASET_PATH" "$host:$REMOTE_DATASET_PATH"
   done
-  scp -q "$LOCAL_RUNTIME_CONFIG_PATH" "$benchmark_host:$REMOTE_RUNTIME_CONFIG_PATH"
+  scp_remote "$LOCAL_RUNTIME_CONFIG_PATH" "$benchmark_host:$REMOTE_RUNTIME_CONFIG_PATH"
 }
 
 run_populate_remote() {
   local host
   host="$(client_node "$POPULATE_CLIENT_INDEX")"
   echo "Running PopulateDB on $host..."
-  ssh "$host" "cd '$(remote_run_dir)/$POPULATE_CLIENT_DIR' && env JAVA_OPTS='$QUINTA_CLIENT_JAVA_OPTS' bash smartrun.sh sse.populatedb.PopulateDB --client-id '$POPULATE_CLIENT_ID' --input '$REMOTE_DATASET_PATH' --batch-size '$POPULATE_BATCH_SIZE'" \
+  ssh_remote "$host" "cd '$(remote_run_dir)/$POPULATE_CLIENT_DIR' && env JAVA_OPTS='$QUINTA_CLIENT_JAVA_OPTS' bash smartrun.sh sse.populatedb.PopulateDB --client-id '$POPULATE_CLIENT_ID' --input '$REMOTE_DATASET_PATH' --batch-size '$POPULATE_BATCH_SIZE'" \
     > "$ABS_LOG_DIR/populate.log" 2>&1
   grep -q "PopulateDB finished." "$ABS_LOG_DIR/populate.log" || {
     tail -n 40 "$ABS_LOG_DIR/populate.log" >&2 || true
@@ -374,20 +392,20 @@ run_benchmark_remote() {
   local host
   host="$(client_node "$BENCHMARK_CLIENT_INDEX")"
   echo "Running BenchmarkClient on $host..."
-  ssh "$host" "cd '$(remote_run_dir)/$BENCHMARK_CLIENT_DIR' && env JAVA_OPTS='$QUINTA_CLIENT_JAVA_OPTS' bash smartrun.sh sse.benchmark.BenchmarkClient '$REMOTE_RUNTIME_CONFIG_PATH'" \
+  ssh_remote "$host" "cd '$(remote_run_dir)/$BENCHMARK_CLIENT_DIR' && env JAVA_OPTS='$QUINTA_CLIENT_JAVA_OPTS' bash smartrun.sh sse.benchmark.BenchmarkClient '$REMOTE_RUNTIME_CONFIG_PATH'" \
     > "$ABS_LOG_DIR/benchmark.log" 2>&1
 }
 
 fetch_results() {
   local benchmark_host node replica_id remote_log
   benchmark_host="$(client_node "$BENCHMARK_CLIENT_INDEX")"
-  scp -q "$benchmark_host:$REMOTE_OUTPUT_PATH" "$ABS_OUTPUT_PATH"
+  scp_remote "$benchmark_host:$REMOTE_OUTPUT_PATH" "$ABS_OUTPUT_PATH"
 
   for (( replica_id = 0; replica_id < REPLICA_COUNT; replica_id++ )); do
     node_index=$((replica_id % ${#QUINTA_NODES[@]}))
     node="${QUINTA_NODES[$node_index]}"
     remote_log="$(remote_run_dir)/rep${replica_id}/server.log"
-    scp -q "${QUINTA_SSH_PREFIX}${node}:$remote_log" "$ABS_LOG_DIR/rep${replica_id}.log" || true
+    scp_remote "${QUINTA_SSH_PREFIX}${node}:$remote_log" "$ABS_LOG_DIR/rep${replica_id}.log" || true
   done
 }
 

@@ -38,6 +38,24 @@ die() {
   exit 1
 }
 
+ssh_remote() {
+  ssh -n \
+    -o BatchMode=yes \
+    -o ConnectTimeout="${QUINTA_SSH_CONNECT_TIMEOUT_SECONDS:-10}" \
+    -o ServerAliveInterval="${QUINTA_SSH_SERVER_ALIVE_INTERVAL_SECONDS:-5}" \
+    -o ServerAliveCountMax="${QUINTA_SSH_SERVER_ALIVE_COUNT_MAX:-2}" \
+    "$@"
+}
+
+scp_remote() {
+  scp -q \
+    -o BatchMode=yes \
+    -o ConnectTimeout="${QUINTA_SSH_CONNECT_TIMEOUT_SECONDS:-10}" \
+    -o ServerAliveInterval="${QUINTA_SSH_SERVER_ALIVE_INTERVAL_SECONDS:-5}" \
+    -o ServerAliveCountMax="${QUINTA_SSH_SERVER_ALIVE_COUNT_MAX:-2}" \
+    "$@"
+}
+
 parse_args() {
   if [[ "$#" -lt 1 ]]; then
     usage
@@ -320,9 +338,9 @@ copy_local_deploy_dir() {
   local host="$2"
   local remote_dir="$3"
 
-  if ! scp -q -r "$local_dir" "$host:$remote_dir/"; then
+  if ! scp_remote -r "$local_dir" "$host:$remote_dir/"; then
     echo "  retrying with legacy scp protocol..."
-    scp -q -O -r "$local_dir" "$host:$remote_dir/"
+    scp_remote -O -r "$local_dir" "$host:$remote_dir/"
   fi
 }
 
@@ -358,7 +376,7 @@ deploy() {
   echo "Preparing remote directories..."
   for node in "${QUINTA_NODES[@]}"; do
     host="$(ssh_host "$node")"
-    ssh "$host" "rm -rf '$(remote_run_dir)' && mkdir -p '$(remote_run_dir)'"
+    ssh_remote "$host" "rm -rf '$(remote_run_dir)' && mkdir -p '$(remote_run_dir)'"
   done
 
   echo "Copying replicas..."
@@ -391,8 +409,8 @@ preflight() {
     expected_ip="${QUINTA_NODE_IPS[$node_index]}"
     host="$(ssh_host "$node")"
     echo "=== $host ==="
-    ssh "$host" "echo whoami=\$(whoami); hostname; ip -4 addr | grep -q '$expected_ip' && echo ip-ok=$expected_ip || echo ip-missing=$expected_ip; df -h / | tail -n 1"
-    java_output="$(ssh "$host" "java -version 2>&1 | head -n 1" || true)"
+    ssh_remote "$host" "echo whoami=\$(whoami); hostname; ip -4 addr | grep -q '$expected_ip' && echo ip-ok=$expected_ip || echo ip-missing=$expected_ip; df -h / | tail -n 1"
+    java_output="$(ssh_remote "$host" "java -version 2>&1 | head -n 1" || true)"
     echo "$java_output"
     java_major="$(printf '%s\n' "$java_output" | sed -n 's/.*version \"\([0-9][0-9]*\).*/\1/p')"
     [[ "$java_major" == "$QUINTA_REQUIRED_JAVA_MAJOR" ]] || die "$host has Java '$java_output', expected major $QUINTA_REQUIRED_JAVA_MAJOR"
@@ -404,7 +422,7 @@ preflight() {
       fi
     done
     for port in $ports; do
-      if ssh "$host" "ss -ltn | grep -q ':$port '" >/dev/null 2>&1; then
+      if ssh_remote "$host" "ss -ltn | grep -q ':$port '" >/dev/null 2>&1; then
         die "$host has port $port in use"
       fi
     done
@@ -419,7 +437,7 @@ start() {
     host="$(ssh_host "$node")"
     remote_dir="$(remote_replica_dir "$replica_id")"
     echo "Starting rep$replica_id on $host"
-    ssh -f -n "$host" "cd '$remote_dir' && nohup env JAVA_OPTS='$QUINTA_REPLICA_JAVA_OPTS' bash smartrun.sh sse.demo.server.Server $replica_id > server.log 2>&1 < /dev/null & echo \$! > server.pid"
+    ssh_remote -f "$host" "cd '$remote_dir' && nohup env JAVA_OPTS='$QUINTA_REPLICA_JAVA_OPTS' bash smartrun.sh sse.demo.server.Server $replica_id > server.log 2>&1 < /dev/null & echo \$! > server.pid"
   done
 }
 
@@ -434,7 +452,7 @@ wait_ready() {
       node="$(replica_node "$replica_id")"
       host="$(ssh_host "$node")"
       remote_dir="$(remote_replica_dir "$replica_id")"
-      if ! ssh "$host" "grep -q 'Ready to process operations' '$remote_dir/server.log' 2>/dev/null" >/dev/null 2>&1; then
+      if ! ssh_remote "$host" "grep -q 'Ready to process operations' '$remote_dir/server.log' 2>/dev/null" >/dev/null 2>&1; then
         ready=0
         break
       fi
@@ -459,7 +477,7 @@ status() {
     host="$(ssh_host "$node")"
     remote_dir="$(remote_replica_dir "$replica_id")"
     echo "=== $host rep$replica_id ==="
-    ssh "$host" "pgrep -af '[s]se.demo.server.Server $replica_id' || echo 'not running'; grep -n 'Ready to process operations' '$remote_dir/server.log' 2>/dev/null || tail -n 20 '$remote_dir/server.log' 2>/dev/null || echo 'no server.log'"
+    ssh_remote "$host" "pgrep -af '[s]se.demo.server.Server $replica_id' || echo 'not running'; grep -n 'Ready to process operations' '$remote_dir/server.log' 2>/dev/null || tail -n 20 '$remote_dir/server.log' 2>/dev/null || echo 'no server.log'"
   done
 }
 
@@ -469,7 +487,7 @@ stop() {
   for node in "${QUINTA_NODES[@]}"; do
     host="$(ssh_host "$node")"
     echo "Stopping on $host"
-    ssh "$host" "pkill -f '$(remote_run_dir).*[s]se.demo.server.Server' || true; pkill -f '$(remote_run_dir).*/[s]martrun.sh' || true"
+    ssh_remote "$host" "pkill -f '$(remote_run_dir).*[s]se.demo.server.Server' || true; pkill -f '$(remote_run_dir).*/[s]martrun.sh' || true"
   done
 }
 
@@ -480,7 +498,7 @@ clean() {
   for node in "${QUINTA_NODES[@]}"; do
     host="$(ssh_host "$node")"
     echo "Cleaning on $host"
-    ssh "$host" "rm -rf '$(remote_run_dir)'"
+    ssh_remote "$host" "rm -rf '$(remote_run_dir)'"
   done
 }
 
