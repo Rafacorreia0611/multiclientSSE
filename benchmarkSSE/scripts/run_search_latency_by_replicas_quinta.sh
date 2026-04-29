@@ -4,16 +4,18 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DEFAULT_CONFIG="$ROOT_DIR/benchmarkSSE/config/search_latency_by_docs.properties"
+DEFAULT_CLUSTER_CONFIG="$ROOT_DIR/benchmarkSSE/config/quinta.env"
 CONFIG_PATH="$DEFAULT_CONFIG"
-REPLICA_LIST="4,7,10,13"
+CLUSTER_CONFIG="$DEFAULT_CLUSTER_CONFIG"
+REPLICA_LIST="4,7,10"
 
-DOCS_RUNNER="$ROOT_DIR/benchmarkSSE/scripts/run_search_latency_by_docs.sh"
+DOCS_RUNNER="$ROOT_DIR/benchmarkSSE/scripts/run_search_latency_by_docs_quinta.sh"
 AGGREGATE_SCRIPT="$ROOT_DIR/benchmarkSSE/scripts/aggregate_search_latency_by_replicas.py"
 GNUPLOT_SCRIPT="$ROOT_DIR/benchmarkSSE/gnuplot/search_latency_by_replicas.gp"
 
 usage() {
   cat >&2 <<EOF
-Usage: $(basename "$0") [--config PATH] [--replicas N[,N...]]
+Usage: $(basename "$0") [--config PATH] [--cluster-config PATH] [--replicas N[,N...]]
 EOF
 }
 
@@ -33,6 +35,24 @@ parse_args() {
         CONFIG_PATH="${1#--config=}"
         if [[ -z "$CONFIG_PATH" ]]; then
           echo "Missing value for --config." >&2
+          usage
+          exit 1
+        fi
+        shift
+        ;;
+      --cluster-config)
+        if [[ "$#" -lt 2 || "$2" == --* ]]; then
+          echo "Missing value for --cluster-config." >&2
+          usage
+          exit 1
+        fi
+        CLUSTER_CONFIG="$2"
+        shift 2
+        ;;
+      --cluster-config=*)
+        CLUSTER_CONFIG="${1#--cluster-config=}"
+        if [[ -z "$CLUSTER_CONFIG" ]]; then
+          echo "Missing value for --cluster-config." >&2
           usage
           exit 1
         fi
@@ -68,15 +88,22 @@ parse_args() {
     esac
   done
 
-  if [[ "$CONFIG_PATH" != /* ]]; then
-    CONFIG_PATH="$ROOT_DIR/$CONFIG_PATH"
-  fi
+  [[ "$CONFIG_PATH" = /* ]] || CONFIG_PATH="$ROOT_DIR/$CONFIG_PATH"
+  [[ "$CLUSTER_CONFIG" = /* ]] || CLUSTER_CONFIG="$ROOT_DIR/$CLUSTER_CONFIG"
 }
 
 ensure_file_exists() {
   local path="$1"
   if [[ ! -f "$path" ]]; then
     echo "Required file not found: $path" >&2
+    exit 1
+  fi
+}
+
+ensure_executable_exists() {
+  local path="$1"
+  if [[ ! -x "$path" ]]; then
+    echo "Required executable not found: $path" >&2
     exit 1
   fi
 }
@@ -128,7 +155,7 @@ doc_counts_to_buckets() {
 }
 
 parse_replica_list() {
-  local raw_list compact_list replica_count
+  local compact_list replica_count
 
   compact_list="${REPLICA_LIST//[[:space:]]/}"
   if [[ -z "$compact_list" ]]; then
@@ -161,9 +188,9 @@ load_bucket_config() {
       exit 1
       ;;
   esac
-
   BUCKET_SPECS="${BUCKET_LIST//,/ }"
   BUCKET_LABELS=""
+
   for bucket in $BUCKET_SPECS; do
     [[ -z "$BUCKET_LABELS" ]] || BUCKET_LABELS+=" "
     BUCKET_LABELS+="${bucket/:/-}"
@@ -177,12 +204,12 @@ fault_count_for() {
 
 prepare_outputs() {
   SWEEP_DATE="$(date +%d_%m_%Y)"
-  SWEEP_NAME="$(date +%H_%M_%S)_replica_sweep"
+  SWEEP_NAME="$(date +%H_%M_%S)_quinta_replica_sweep"
   SWEEP_RESULTS_DIR="$ROOT_DIR/benchmarkSSE/results/data/$SWEEP_DATE/$SWEEP_NAME"
   SWEEP_PLOTS_DIR="$ROOT_DIR/benchmarkSSE/plots/$SWEEP_DATE/$SWEEP_NAME"
   SWEEP_LOG_DIR="$ROOT_DIR/benchmarkSSE/results/logs/$SWEEP_DATE/$SWEEP_NAME"
   SWEEP_SUMMARY_PATH="$SWEEP_RESULTS_DIR/search_latency_by_replicas_summary.tsv"
-  SWEEP_LOG_PATH="$SWEEP_LOG_DIR/run_search_latency_by_replicas.log"
+  SWEEP_LOG_PATH="$SWEEP_LOG_DIR/run_search_latency_by_replicas_quinta.log"
 
   mkdir -p "$SWEEP_RESULTS_DIR" "$SWEEP_PLOTS_DIR" "$SWEEP_LOG_DIR"
 }
@@ -218,13 +245,13 @@ run_one_benchmark() {
   local fault_count marker_path summary_path
 
   fault_count="$(fault_count_for "$replica_count")"
-  marker_path="$(mktemp "$ROOT_DIR/benchmarkSSE/results/data/.replica_sweep_marker.XXXXXX")"
+  marker_path="$(mktemp "$ROOT_DIR/benchmarkSSE/results/data/.quinta_replica_sweep_marker.XXXXXX")"
   {
     echo
-    echo "===== Running search latency benchmark with replicaCount=$replica_count f=$fault_count ====="
+    echo "===== Running Quinta search latency benchmark with replicaCount=$replica_count f=$fault_count ====="
   } | tee -a "$SWEEP_LOG_PATH"
 
-  if ! "$DOCS_RUNNER" --config "$CONFIG_PATH" --replicas "$replica_count" 2>&1 | tee -a "$SWEEP_LOG_PATH"; then
+  if ! "$DOCS_RUNNER" --config "$CONFIG_PATH" --cluster-config "$CLUSTER_CONFIG" --replicas "$replica_count" 2>&1 | tee -a "$SWEEP_LOG_PATH"; then
     rm -f "$marker_path"
     echo "Benchmark failed for replicaCount=$replica_count." >&2
     exit 1
@@ -243,7 +270,7 @@ aggregate_results() {
 }
 
 generate_plots() {
-  echo "Generating replica sweep plots..." | tee -a "$SWEEP_LOG_PATH"
+  echo "Generating Quinta replica sweep plots..." | tee -a "$SWEEP_LOG_PATH"
   gnuplot \
     -e "input_path='$SWEEP_SUMMARY_PATH'; output_dir='$SWEEP_PLOTS_DIR'; bucket_specs='$BUCKET_SPECS'; bucket_labels='$BUCKET_LABELS'" \
     "$GNUPLOT_SCRIPT" 2>&1 | tee -a "$SWEEP_LOG_PATH"
@@ -272,10 +299,11 @@ verify_outputs() {
 main() {
   parse_args "$@"
   parse_replica_list
-  ensure_file_exists "$DOCS_RUNNER"
+  ensure_executable_exists "$DOCS_RUNNER"
   ensure_file_exists "$AGGREGATE_SCRIPT"
   ensure_file_exists "$GNUPLOT_SCRIPT"
   ensure_file_exists "$CONFIG_PATH"
+  ensure_file_exists "$CLUSTER_CONFIG"
   ensure_command_exists python3
   ensure_command_exists gnuplot
   load_bucket_config
@@ -283,8 +311,9 @@ main() {
   SUMMARY_PATHS=()
 
   prepare_outputs
-  echo "Replica sweep: ${REPLICA_COUNTS[*]}" | tee -a "$SWEEP_LOG_PATH"
+  echo "Quinta replica sweep: ${REPLICA_COUNTS[*]}" | tee -a "$SWEEP_LOG_PATH"
   echo "Config: $CONFIG_PATH" | tee -a "$SWEEP_LOG_PATH"
+  echo "Cluster config: $CLUSTER_CONFIG" | tee -a "$SWEEP_LOG_PATH"
   echo "Buckets: $BUCKET_LIST" | tee -a "$SWEEP_LOG_PATH"
 
   local replica_count
@@ -296,8 +325,8 @@ main() {
   generate_plots
   verify_outputs
 
-  echo "Replica sweep summary written to $SWEEP_SUMMARY_PATH"
-  echo "Replica sweep plots written to $SWEEP_PLOTS_DIR"
+  echo "Quinta replica sweep summary written to $SWEEP_SUMMARY_PATH"
+  echo "Quinta replica sweep plots written to $SWEEP_PLOTS_DIR"
 }
 
 main "$@"
