@@ -5,6 +5,7 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -25,6 +26,7 @@ import sse.domain.UpdateToken;
 import sse.domain.UpdateTuple;
 import sse.domain.populatedb.BulkUpdateItem;
 import sse.domain.populatedb.BulkUpdateRequest;
+import sse.domain.populatedb.PendingKeywordUpdates;
 
 public final class UpdateTokenService {
 
@@ -91,14 +93,21 @@ public final class UpdateTokenService {
     public BulkUpdateRequest generateBulkUpdateRequest(SecretKey tokenGenKey, SecretKey updateCounterKey,
                                                        State state, String keyword,
                                                        List<EncryptedUpdateTuple> encryptedTuples) {
-        if (keyword == null || keyword.isEmpty() || encryptedTuples == null || encryptedTuples.isEmpty()) {
-            throw new IllegalArgumentException("keyword and encryptedTuples cannot be null or empty");
+        return generateBulkUpdateRequest(
+                tokenGenKey,
+                updateCounterKey,
+                state,
+                Collections.singletonList(new PendingKeywordUpdates(keyword, encryptedTuples))
+        );
+    }
+
+    public BulkUpdateRequest generateBulkUpdateRequest(SecretKey tokenGenKey, SecretKey updateCounterKey,
+                                                       State state,
+                                                       List<PendingKeywordUpdates> pendingUpdates) {
+        if (pendingUpdates == null || pendingUpdates.isEmpty()) {
+            throw new IllegalArgumentException("pendingUpdates cannot be null or empty");
         }
 
-        byte[] keywordTokenBytes = Prf.prf(tokenGenKey, keyword);
-        KeywordToken keywordToken = new KeywordToken(keywordTokenBytes);
-
-        int searchCount = state.searchCounter().getOrDefault(keywordToken, 0);
         Map<KeywordToken, Integer> updateCounter;
         try {
             updateCounter = UpdateCounterEncryption.decryptUpdateCounter(
@@ -108,22 +117,30 @@ public final class UpdateTokenService {
         } catch (Exception e) {
             throw new RuntimeException("Error decrypting update counter", e);
         }
-        int updateCount = updateCounter.getOrDefault(keywordToken, 0);
 
-        byte[] epochSearchKeyBytes = Prf.prf(tokenGenKey, keyword + ":" + searchCount);
-
-        List<BulkUpdateItem> items = new ArrayList<BulkUpdateItem>(encryptedTuples.size());
-        for (EncryptedUpdateTuple encryptedTuple : encryptedTuples) {
-            if (encryptedTuple == null) {
-                throw new IllegalArgumentException("encryptedTuples cannot contain null values");
+        List<BulkUpdateItem> items = new ArrayList<BulkUpdateItem>();
+        for (PendingKeywordUpdates pendingUpdate : pendingUpdates) {
+            if (pendingUpdate == null) {
+                throw new IllegalArgumentException("pendingUpdates cannot contain null values");
             }
 
-            updateCount++;
-            IndexAddress address = new IndexAddress(Prf.prf(epochSearchKeyBytes, updateCount));
-            items.add(new BulkUpdateItem(address, encryptedTuple));
+            String keyword = pendingUpdate.keyword();
+            byte[] keywordTokenBytes = Prf.prf(tokenGenKey, keyword);
+            KeywordToken keywordToken = new KeywordToken(keywordTokenBytes);
+
+            int searchCount = state.searchCounter().getOrDefault(keywordToken, 0);
+            int updateCount = updateCounter.getOrDefault(keywordToken, 0);
+            byte[] epochSearchKeyBytes = Prf.prf(tokenGenKey, keyword + ":" + searchCount);
+
+            for (EncryptedUpdateTuple encryptedTuple : pendingUpdate.encryptedTuples()) {
+                updateCount++;
+                IndexAddress address = new IndexAddress(Prf.prf(epochSearchKeyBytes, updateCount));
+                items.add(new BulkUpdateItem(address, encryptedTuple));
+            }
+
+            updateCounter.put(keywordToken, updateCount);
         }
 
-        updateCounter.put(keywordToken, updateCount);
         EncryptedUpdateCounter updatedEncryptedUpdateCounter;
         try {
             updatedEncryptedUpdateCounter = UpdateCounterEncryption.encryptUpdateCounter(

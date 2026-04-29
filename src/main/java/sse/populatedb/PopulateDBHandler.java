@@ -15,6 +15,7 @@ import sse.domain.EncryptedUpdateTuple;
 import sse.domain.InitializationMaterial;
 import sse.domain.State;
 import sse.domain.populatedb.BulkUpdateRequest;
+import sse.domain.populatedb.PendingKeywordUpdates;
 import sse.facade.SseClientFacade;
 
 public final class PopulateDBHandler {
@@ -63,6 +64,8 @@ public final class PopulateDBHandler {
         long sentBatches = 0L;
         long startTimeNanos = System.nanoTime();
         long lastProgressLogNanos = startTimeNanos;
+        List<PendingKeywordUpdates> pendingUpdates = new ArrayList<PendingKeywordUpdates>();
+        List<SecretKey> pendingTupleKeys = new ArrayList<SecretKey>();
 
         try (BufferedReader reader = datasetReader.openReader(inputPath)) {
             String line;
@@ -76,28 +79,53 @@ public final class PopulateDBHandler {
                 }
 
                 List<String> docIds = entry.docIds();
-                for (int start = 0; start < docIds.size(); start += batchSize) {
-                    int end = Math.min(start + batchSize, docIds.size());
+                int start = 0;
+                while (start < docIds.size()) {
+                    int availableSlots = batchSize - pendingTupleKeys.size();
+                    int end = Math.min(start + availableSlots, docIds.size());
                     List<String> batchDocIds = docIds.subList(start, end);
-                    BatchResult batchResult = prepareBatch(entry.keyword(), batchDocIds, tokenGenKey, updateCounterKey,
-                            currentState);
+                    PreparedKeywordUpdates preparedUpdates = preparePendingUpdates(entry.keyword(), batchDocIds);
 
-                    if (!adapter.sendBulkUpdateRequest(batchResult.request(), batchResult.updateTupleKeys())) {
-                        throw new IllegalStateException(
-                                "Server rejected bulk update for keyword '" + entry.keyword() + "'");
+                    pendingUpdates.add(preparedUpdates.pendingUpdates());
+                    pendingTupleKeys.addAll(preparedUpdates.tupleKeys());
+                    start = end;
+
+                    if (pendingTupleKeys.size() == batchSize) {
+                        SentBatch sentBatch = sendPendingBatch(
+                                pendingUpdates,
+                                pendingTupleKeys,
+                                tokenGenKey,
+                                updateCounterKey,
+                                currentState
+                        );
+                        currentState = sentBatch.state();
+                        processedDocIds += sentBatch.sentDocIds();
+                        sentBatches++;
+                        pendingUpdates.clear();
+                        pendingTupleKeys.clear();
+
+                        long now = System.nanoTime();
+                        if (shouldLogProgress(lastProgressLogNanos, now)) {
+                            printProgress(processedKeywords, processedDocIds, sentBatches, startTimeNanos);
+                            lastProgressLogNanos = now;
+                        }
                     }
-
-                    currentState = new State(currentState.searchCounter(), batchResult.request().encryptedUpdateCounter());
-                    processedDocIds += batchDocIds.size();
-                    sentBatches++;
                 }
 
                 processedKeywords++;
-                long now = System.nanoTime();
-                if (shouldLogProgress(lastProgressLogNanos, now)) {
-                    printProgress(processedKeywords, processedDocIds, sentBatches, startTimeNanos);
-                    lastProgressLogNanos = now;
-                }
+            }
+
+            if (!pendingTupleKeys.isEmpty()) {
+                SentBatch sentBatch = sendPendingBatch(
+                        pendingUpdates,
+                        pendingTupleKeys,
+                        tokenGenKey,
+                        updateCounterKey,
+                        currentState
+                );
+                currentState = sentBatch.state();
+                processedDocIds += sentBatch.sentDocIds();
+                sentBatches++;
             }
 
             if (!adapter.sendSetupCompleteRequest()) {
@@ -116,25 +144,41 @@ public final class PopulateDBHandler {
         }
     }
 
-    private BatchResult prepareBatch(String keyword, List<String> docIds, SecretKey tokenGenKey,
-                                     SecretKey updateCounterKey, State currentState) {
+    private PreparedKeywordUpdates preparePendingUpdates(String keyword, List<String> docIds) {
         List<EncryptedUpdateTuple> encryptedTuples = new ArrayList<EncryptedUpdateTuple>(docIds.size());
-        SecretKey[] tupleKeys = new SecretKey[docIds.size()];
+        List<SecretKey> tupleKeys = new ArrayList<SecretKey>(docIds.size());
 
         for (int i = 0; i < docIds.size(); i++) {
             SecretKey tupleKey = sseClientFacade.generateTupleSecretKey();
-            tupleKeys[i] = tupleKey;
+            tupleKeys.add(tupleKey);
             encryptedTuples.add(sseClientFacade.generateEncryptedUpdateTuple(docIds.get(i), true, tupleKey));
         }
 
+        return new PreparedKeywordUpdates(new PendingKeywordUpdates(keyword, encryptedTuples), tupleKeys);
+    }
+
+    private SentBatch sendPendingBatch(List<PendingKeywordUpdates> pendingUpdates, List<SecretKey> pendingTupleKeys,
+                                       SecretKey tokenGenKey, SecretKey updateCounterKey, State currentState) {
         BulkUpdateRequest request = sseClientFacade.generateBulkUpdateRequest(
                 tokenGenKey,
                 updateCounterKey,
                 currentState,
-                keyword,
-                encryptedTuples
+                pendingUpdates
         );
-        return new BatchResult(request, tupleKeys);
+        if (request.items().size() != pendingTupleKeys.size()) {
+            throw new IllegalStateException("Bulk update item/key count mismatch: items="
+                    + request.items().size() + ", keys=" + pendingTupleKeys.size());
+        }
+
+        SecretKey[] tupleKeys = pendingTupleKeys.toArray(new SecretKey[pendingTupleKeys.size()]);
+        if (!adapter.sendBulkUpdateRequest(request, tupleKeys)) {
+            throw new IllegalStateException("Server rejected bulk update batch");
+        }
+
+        return new SentBatch(
+                new State(currentState.searchCounter(), request.encryptedUpdateCounter()),
+                request.items().size()
+        );
     }
 
     private boolean shouldLogProgress(long lastProgressLogNanos, long nowNanos) {
@@ -198,21 +242,39 @@ public final class PopulateDBHandler {
         }
     }
 
-    private static final class BatchResult {
-        private final BulkUpdateRequest request;
-        private final SecretKey[] updateTupleKeys;
+    private static final class PreparedKeywordUpdates {
+        private final PendingKeywordUpdates pendingUpdates;
+        private final List<SecretKey> tupleKeys;
 
-        private BatchResult(BulkUpdateRequest request, SecretKey[] updateTupleKeys) {
-            this.request = request;
-            this.updateTupleKeys = updateTupleKeys;
+        private PreparedKeywordUpdates(PendingKeywordUpdates pendingUpdates, List<SecretKey> tupleKeys) {
+            this.pendingUpdates = pendingUpdates;
+            this.tupleKeys = tupleKeys;
         }
 
-        private BulkUpdateRequest request() {
-            return request;
+        private PendingKeywordUpdates pendingUpdates() {
+            return pendingUpdates;
         }
 
-        private SecretKey[] updateTupleKeys() {
-            return updateTupleKeys;
+        private List<SecretKey> tupleKeys() {
+            return tupleKeys;
+        }
+    }
+
+    private static final class SentBatch {
+        private final State state;
+        private final int sentDocIds;
+
+        private SentBatch(State state, int sentDocIds) {
+            this.state = state;
+            this.sentDocIds = sentDocIds;
+        }
+
+        private State state() {
+            return state;
+        }
+
+        private int sentDocIds() {
+            return sentDocIds;
         }
     }
 }

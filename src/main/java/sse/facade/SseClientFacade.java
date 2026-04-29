@@ -24,6 +24,7 @@ import sse.domain.UpdateToken;
 import sse.domain.UpdateTuple;
 import sse.domain.KeywordToken;
 import sse.domain.populatedb.BulkUpdateRequest;
+import sse.domain.populatedb.PendingKeywordUpdates;
 import sse.service.client.SearchTokenService;
 import sse.service.client.UpdateTokenService;
 
@@ -91,6 +92,17 @@ public final class SseClientFacade {
                 state,
                 keyword,
                 encryptedTuples
+        );
+    }
+
+    public BulkUpdateRequest generateBulkUpdateRequest(SecretKey tokenGenKey, SecretKey updateCounterKey,
+                                                       State state,
+                                                       List<PendingKeywordUpdates> pendingUpdates) {
+        return updateTokenService.generateBulkUpdateRequest(
+                tokenGenKey,
+                updateCounterKey,
+                state,
+                pendingUpdates
         );
     }
 
