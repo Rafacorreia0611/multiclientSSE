@@ -15,7 +15,6 @@ import sse.demo.messages.ResponseStatus;
 import sse.domain.EncryptedUpdateCounter;
 import sse.domain.SearchToken;
 import sse.domain.UpdateToken;
-import sse.domain.populatedb.BulkUpdateRequest;
 import vss.secretsharing.VerifiableShare;
 
 public final class ConfidentialServerAdapter implements ConfidentialSingleExecutable {
@@ -49,14 +48,11 @@ public final class ConfidentialServerAdapter implements ConfidentialSingleExecut
                     return handler.handleSearch(clientId, searchToken);
                 case UPDATE:
                     UpdateToken updateToken = UpdateToken.deserialize(readPayload(in));
-                    return handler.handleUpdate(clientId, updateToken, vss[0]);
+                    return handler.handleUpdate(clientId, updateToken, vss);
                 case STATE:
                     return handler.handleState(clientId, false);
                 case SETUP_STATE:
                     return handler.handleState(clientId, true);
-                case BULK_UPDATE:
-                    BulkUpdateRequest bulkUpdateRequest = BulkUpdateRequest.deserialize(readPayload(in));
-                    return handler.handleBulkUpdate(clientId, bulkUpdateRequest, vss);
                 case SETUP_COMPLETE:
                     return handler.handleSetupComplete(clientId);
                 case SETUP_ABORT:

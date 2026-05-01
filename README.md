@@ -38,14 +38,14 @@ The original COBRA project was tested with Java 11.0.13. This fork follows the s
 Inside the project root, you can:
 
 - compile and package the project with `./gradlew installDist`
-- prepare a local deployment with `./gradlew localDeploy`
+- prepare a local deployment with `./gradlew clean localDeploy`
 
 The `localDeploy` task creates a `build/local` directory with replica folders `rep*` and client folders `cli*`.
 
 You can also control how many replica and client folders are created:
 
 ```bash
-./gradlew localDeploy -Pservers=4 -Pclients=2
+./gradlew clean localDeploy -Pservers=4 -Pclients=2
 ```
 
 By default, `localDeploy` creates `4` replica folders and `1` client folder.

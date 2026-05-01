@@ -5,7 +5,6 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -20,13 +19,13 @@ import sse.domain.EncryptedUpdateCounter;
 import sse.domain.EncryptedUpdateTuple;
 import sse.domain.IndexAddress;
 import sse.domain.KeywordToken;
+import sse.domain.PendingKeywordUpdates;
+import sse.domain.PreparedKeywordUpdates;
 import sse.domain.State;
 import sse.domain.UpdateOp;
 import sse.domain.UpdateToken;
+import sse.domain.UpdateTokenItem;
 import sse.domain.UpdateTuple;
-import sse.domain.populatedb.BulkUpdateItem;
-import sse.domain.populatedb.BulkUpdateRequest;
-import sse.domain.populatedb.PendingKeywordUpdates;
 
 public final class UpdateTokenService {
 
@@ -44,66 +43,37 @@ public final class UpdateTokenService {
         return new EncryptedUpdateTuple(TupleEncryption.encryptTuple(key, iv, tuple), iv);
     }
 
-    public EncryptedUpdateTuple generateEncryptedUpdateTuple(String docId, boolean isAdd, SecretKey encryptionKey) {
+    public EncryptedUpdateTuple generateEncryptedUpdateTuple(String docId, UpdateOp operation, SecretKey encryptionKey) {
+        if (operation == null) {
+            throw new IllegalArgumentException("operation cannot be null");
+        }
         byte[] iv = generateTupleIv();
         try {
-            return encryptUpdateTuple(encryptionKey, iv, new UpdateTuple(docId, isAdd ? UpdateOp.ADD : UpdateOp.DEL));
+            return encryptUpdateTuple(encryptionKey, iv, new UpdateTuple(docId, operation));
         } catch (Exception e) {
             throw new RuntimeException("Error encrypting update tuple", e);
         }
     }
 
+    public PreparedKeywordUpdates prepareKeywordUpdates(String keyword, List<String> docIds, UpdateOp operation) {
+        if (docIds == null || docIds.isEmpty()) {
+            throw new IllegalArgumentException("docIds cannot be null or empty");
+        }
+        List<EncryptedUpdateTuple> encryptedTuples = new ArrayList<EncryptedUpdateTuple>(docIds.size());
+        List<SecretKey> tupleKeys = new ArrayList<SecretKey>(docIds.size());
+
+        for (String docId : docIds) {
+            SecretKey tupleKey = generateTupleSecretKey();
+            tupleKeys.add(tupleKey);
+            encryptedTuples.add(generateEncryptedUpdateTuple(docId, operation, tupleKey));
+        }
+
+        return new PreparedKeywordUpdates(new PendingKeywordUpdates(keyword, encryptedTuples), tupleKeys);
+    }
+
     public UpdateToken generateUpdateToken(SecretKey tokenGenKey, SecretKey updateCounterKey,
-                                           State state, String keyword, EncryptedUpdateTuple encryptedTuple) {
-        if (keyword == null || keyword.isEmpty() || encryptedTuple == null) {
-            throw new IllegalArgumentException("keyword, encryptedTuple cannot be null or empty");
-        }
-
-        byte[] keywordTokenBytes = Prf.prf(tokenGenKey, keyword);
-        KeywordToken keywordToken = new KeywordToken(keywordTokenBytes);
-
-        int searchCount = state.searchCounter().getOrDefault(keywordToken, 0);
-        EncryptedUpdateCounter encryptedUpdateCounter = state.encryptedUpdateCounter();
-        Map<KeywordToken, Integer> updateCounter;
-        try {
-            updateCounter = UpdateCounterEncryption.decryptUpdateCounter(updateCounterKey, encryptedUpdateCounter);
-        } catch (Exception e) {
-            throw new RuntimeException("Error decrypting update counter", e);
-        }
-        int updateCount = updateCounter.getOrDefault(keywordToken, 0);
-
-        byte[] epochSearchKeyBytes = Prf.prf(tokenGenKey, keyword + ":" + searchCount);
-
-        IndexAddress address = new IndexAddress(Prf.prf(epochSearchKeyBytes, updateCount + 1));
-        updateCounter.put(keywordToken, updateCount + 1);
-        EncryptedUpdateCounter updatedEncryptedUpdateCounter;
-        try {
-            updatedEncryptedUpdateCounter = UpdateCounterEncryption.encryptUpdateCounter(
-                    updateCounterKey,
-                    UpdateCounterEncryption.generateIv(),
-                    updateCounter
-            );
-        } catch (Exception e) {
-            throw new RuntimeException("Error encrypting update counter", e);
-        }
-
-        return new UpdateToken(address, encryptedTuple, updatedEncryptedUpdateCounter);
-    }
-
-    public BulkUpdateRequest generateBulkUpdateRequest(SecretKey tokenGenKey, SecretKey updateCounterKey,
-                                                       State state, String keyword,
-                                                       List<EncryptedUpdateTuple> encryptedTuples) {
-        return generateBulkUpdateRequest(
-                tokenGenKey,
-                updateCounterKey,
-                state,
-                Collections.singletonList(new PendingKeywordUpdates(keyword, encryptedTuples))
-        );
-    }
-
-    public BulkUpdateRequest generateBulkUpdateRequest(SecretKey tokenGenKey, SecretKey updateCounterKey,
-                                                       State state,
-                                                       List<PendingKeywordUpdates> pendingUpdates) {
+                                           State state,
+                                           List<PendingKeywordUpdates> pendingUpdates) {
         if (pendingUpdates == null || pendingUpdates.isEmpty()) {
             throw new IllegalArgumentException("pendingUpdates cannot be null or empty");
         }
@@ -118,7 +88,7 @@ public final class UpdateTokenService {
             throw new RuntimeException("Error decrypting update counter", e);
         }
 
-        List<BulkUpdateItem> items = new ArrayList<BulkUpdateItem>();
+        List<UpdateTokenItem> items = new ArrayList<UpdateTokenItem>();
         for (PendingKeywordUpdates pendingUpdate : pendingUpdates) {
             if (pendingUpdate == null) {
                 throw new IllegalArgumentException("pendingUpdates cannot contain null values");
@@ -135,7 +105,7 @@ public final class UpdateTokenService {
             for (EncryptedUpdateTuple encryptedTuple : pendingUpdate.encryptedTuples()) {
                 updateCount++;
                 IndexAddress address = new IndexAddress(Prf.prf(epochSearchKeyBytes, updateCount));
-                items.add(new BulkUpdateItem(address, encryptedTuple));
+                items.add(new UpdateTokenItem(address, encryptedTuple));
             }
 
             updateCounter.put(keywordToken, updateCount);
@@ -151,6 +121,6 @@ public final class UpdateTokenService {
         } catch (Exception e) {
             throw new RuntimeException("Error encrypting update counter", e);
         }
-        return new BulkUpdateRequest(items, updatedEncryptedUpdateCounter);
+        return new UpdateToken(items, updatedEncryptedUpdateCounter);
     }
 }

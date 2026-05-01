@@ -3,7 +3,12 @@ package sse.demo.client;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+
+import sse.domain.KeywordUpdate;
+import sse.domain.UpdateOp;
 
 public final class InteractiveClient {
 
@@ -75,21 +80,44 @@ public final class InteractiveClient {
 
     private void handleUpdate(boolean isAdd) {
         System.out.println(isAdd ? "Add" : "Delete");
-        System.out.println("Keyword:");
-        String keyword = readUserLine();
-        if (keyword == null) {
-            System.out.println("Input closed. Back to menu.");
-            return;
+        List<KeywordUpdate> updates = new ArrayList<KeywordUpdate>();
+        UpdateOp operation = isAdd ? UpdateOp.ADD : UpdateOp.DEL;
+
+        while (true) {
+            System.out.println("Keyword:");
+            String keyword = readUserLine();
+            if (keyword == null) {
+                System.out.println("Input closed. Back to menu.");
+                return;
+            }
+
+            System.out.println("Doc IDs separated by comma:");
+            String docIdsInput = readUserLine();
+            if (docIdsInput == null) {
+                System.out.println("Input closed. Back to menu.");
+                return;
+            }
+
+            try {
+                updates.add(new KeywordUpdate(keyword, parseDocIds(docIdsInput), operation));
+            } catch (IllegalArgumentException e) {
+                System.out.println("Invalid update: " + e.getMessage());
+                continue;
+            }
+
+            System.out.println("Add another keyword to this update? [y/N]");
+            String continueInput = readUserLine();
+            if (continueInput == null) {
+                System.out.println("Input closed. Back to menu.");
+                return;
+            }
+            String normalized = continueInput.trim().toLowerCase();
+            if (!"y".equals(normalized) && !"yes".equals(normalized)) {
+                break;
+            }
         }
 
-        System.out.println("Doc ID:");
-        String docId = readUserLine();
-        if (docId == null) {
-            System.out.println("Input closed. Back to menu.");
-            return;
-        }
-
-        client.update(keyword, docId, isAdd);
+        client.update(updates);
     }
 
     private String readUserLine() {
@@ -98,5 +126,19 @@ public final class InteractiveClient {
         } catch (IOException e) {
             throw new RuntimeException("Error reading input from terminal", e);
         }
+    }
+
+    private List<String> parseDocIds(String input) {
+        List<String> docIds = new ArrayList<String>();
+        for (String rawDocId : Arrays.asList(input.split(","))) {
+            String docId = rawDocId.trim();
+            if (!docId.isEmpty()) {
+                docIds.add(docId);
+            }
+        }
+        if (docIds.isEmpty()) {
+            throw new IllegalArgumentException("at least one doc ID is required");
+        }
+        return docIds;
     }
 }

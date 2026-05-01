@@ -25,7 +25,6 @@ import sse.domain.InitializationMaterial;
 import sse.domain.SearchToken;
 import sse.domain.State;
 import sse.domain.UpdateToken;
-import sse.domain.populatedb.BulkUpdateRequest;
 import vss.facade.SecretSharingException;
 
 public final class ConfidentialClientAdapter {
@@ -132,15 +131,7 @@ public final class ConfidentialClientAdapter {
         }
     }
 
-    public boolean sendUpdateRequest(UpdateToken updateToken, SecretKey updateTupleKey) {
-        return sendStatusOnlyRequest(
-                RequestType.UPDATE,
-                updateToken == null ? null : updateToken.serialize(),
-                updateTupleKey == null ? null : new byte[][]{updateTupleKey.getEncoded()}
-        );
-    }
-
-    public boolean sendBulkUpdateRequest(BulkUpdateRequest bulkUpdateRequest, SecretKey[] updateTupleKeys) {
+    public boolean sendUpdateRequest(UpdateToken updateToken, SecretKey[] updateTupleKeys) {
         byte[][] confidentialData = null;
         if (updateTupleKeys != null) {
             confidentialData = new byte[updateTupleKeys.length][];
@@ -153,8 +144,8 @@ public final class ConfidentialClientAdapter {
         }
 
         return sendStatusOnlyRequest(
-                RequestType.BULK_UPDATE,
-                bulkUpdateRequest == null ? null : bulkUpdateRequest.serialize(),
+                RequestType.UPDATE,
+                updateToken == null ? null : updateToken.serialize(),
                 confidentialData
         );
     }

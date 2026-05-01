@@ -9,7 +9,6 @@ public enum RequestType {
     INIT_STATE,
 
     // PopulateDB requests
-    BULK_UPDATE,
     SETUP_COMPLETE,
     SETUP_ABORT;
 

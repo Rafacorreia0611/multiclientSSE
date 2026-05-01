@@ -9,7 +9,6 @@ import sse.domain.SearchResponseData;
 import sse.domain.SearchToken;
 import sse.domain.State;
 import sse.domain.UpdateToken;
-import sse.domain.populatedb.BulkUpdateRequest;
 import sse.snapshot.SsePlainSnapshotData;
 import sse.service.server.SearchService;
 import sse.service.server.SnapshotService;
@@ -35,12 +34,8 @@ public final class SseServerFacade {
         return searchService.search(state, searchToken);
     }
 
-    public void updateQuery(UpdateToken updateToken, VerifiableShare updateTupleKeyShare) {
-        updateService.update(state, updateToken, updateTupleKeyShare);
-    }
-
-    public void bulkUpdateQuery(BulkUpdateRequest bulkUpdateRequest, VerifiableShare[] updateTupleKeyShares) {
-        updateService.bulkUpdate(state, bulkUpdateRequest, updateTupleKeyShares);
+    public void updateQuery(UpdateToken updateToken, VerifiableShare[] updateTupleKeyShares) {
+        updateService.update(state, updateToken, updateTupleKeyShares);
     }
 
     public boolean isInitialized() {
@@ -90,10 +85,6 @@ public final class SseServerFacade {
 
     public boolean isSetupInProgress() {
         return state.setupInProgress();
-    }
-
-    public void setSetupInProgress(boolean setupInProgress) {
-        state.setSetupInProgress(setupInProgress);
     }
 
     public Boolean initializeState(EncryptedUpdateCounter encryptedUpdateCounter,

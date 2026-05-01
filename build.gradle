@@ -24,7 +24,9 @@ distributions {
             }
             from 'pairing_based_execution.sh'
             into('config') {
-                from 'config'
+                from('config') {
+                    include '**/*'
+                }
             }
             into('lib') {
                 from jar

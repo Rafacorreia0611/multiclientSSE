@@ -1,17 +1,14 @@
-package sse.domain.populatedb;
+package sse.domain;
 
 import java.io.Serializable;
 import java.util.Objects;
 
-import sse.domain.EncryptedUpdateTuple;
-import sse.domain.IndexAddress;
-
-public final class BulkUpdateItem implements Serializable {
+public final class UpdateTokenItem implements Serializable {
 
     private final IndexAddress address;
     private final EncryptedUpdateTuple encryptedTuple;
 
-    public BulkUpdateItem(IndexAddress address, EncryptedUpdateTuple encryptedTuple) {
+    public UpdateTokenItem(IndexAddress address, EncryptedUpdateTuple encryptedTuple) {
         if (address == null || encryptedTuple == null) {
             throw new IllegalArgumentException("address and encryptedTuple cannot be null");
         }
@@ -35,7 +32,7 @@ public final class BulkUpdateItem implements Serializable {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        BulkUpdateItem that = (BulkUpdateItem) o;
+        UpdateTokenItem that = (UpdateTokenItem) o;
         return Objects.equals(address, that.address)
                 && Objects.equals(encryptedTuple, that.encryptedTuple);
     }
@@ -47,7 +44,7 @@ public final class BulkUpdateItem implements Serializable {
 
     @Override
     public String toString() {
-        return "BulkUpdateItem[" +
+        return "UpdateTokenItem[" +
                 "address=" + address +
                 ", encryptedTuple=" + encryptedTuple +
                 ']';

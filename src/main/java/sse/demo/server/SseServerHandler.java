@@ -14,7 +14,6 @@ import sse.domain.SearchResponseData;
 import sse.domain.SearchToken;
 import sse.domain.State;
 import sse.domain.UpdateToken;
-import sse.domain.populatedb.BulkUpdateRequest;
 import sse.facade.SseServerFacade;
 import sse.snapshot.SsePlainSnapshotData;
 import vss.secretsharing.VerifiableShare;
@@ -92,26 +91,7 @@ public final class SseServerHandler {
         return new ConfidentialMessage(plainResponse, tokenGenKeyShare, updateCounterKeyShare);
     }
 
-    public ConfidentialMessage handleUpdate(int clientId, UpdateToken updateToken, VerifiableShare updateTupleKeyShare) {
-        int activeClientId = sseServerFacade.getActiveClientId();
-        if (activeClientId == -1) {
-            return statusMessage(ResponseStatus.RETRY);
-        } else if (activeClientId != clientId) {
-            return statusMessage(ResponseStatus.BUSY);
-        }
-        try {
-            if (updateToken == null || updateTupleKeyShare == null) {
-                return statusMessage(ResponseStatus.FAILED);
-            }
-            sseServerFacade.updateQuery(updateToken, updateTupleKeyShare);
-            return statusMessage(ResponseStatus.OK);
-        } finally {
-            sseServerFacade.clearActiveClientId();
-        }
-    }
-
-    public ConfidentialMessage handleBulkUpdate(int clientId, BulkUpdateRequest bulkUpdateRequest,
-                                                VerifiableShare[] updateTupleKeyShares) {
+    public ConfidentialMessage handleUpdate(int clientId, UpdateToken updateToken, VerifiableShare[] updateTupleKeyShares) {
         int activeClientId = sseServerFacade.getActiveClientId();
         if (activeClientId == -1) {
             return statusMessage(ResponseStatus.RETRY);
@@ -119,17 +99,24 @@ public final class SseServerHandler {
             return statusMessage(ResponseStatus.BUSY);
         }
 
+        boolean setupMode = sseServerFacade.isSetupInProgress();
+
         try {
-            if (bulkUpdateRequest == null || updateTupleKeyShares == null) {
+            if (updateToken == null || updateTupleKeyShares == null) {
                 return statusMessage(ResponseStatus.FAILED);
             }
-            sseServerFacade.bulkUpdateQuery(bulkUpdateRequest, updateTupleKeyShares);
-            sseServerFacade.setSetupInProgress(true);
-            sseServerFacade.resetBlockedStateRequestsWhileActive();
+            sseServerFacade.updateQuery(updateToken, updateTupleKeyShares);
+            if (setupMode) {
+                sseServerFacade.resetBlockedStateRequestsWhileActive();
+            }
             return statusMessage(ResponseStatus.OK);
         } catch (IllegalArgumentException e) {
-            System.err.println("Rejected bulk update from client " + clientId + ": " + e.getMessage());
+            System.err.println("Rejected update from client " + clientId + ": " + e.getMessage());
             return statusMessage(ResponseStatus.FAILED);
+        } finally {
+            if (!setupMode) {
+                sseServerFacade.clearActiveClientId();
+            }
         }
     }
 

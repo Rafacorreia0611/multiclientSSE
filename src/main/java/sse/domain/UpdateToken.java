@@ -8,29 +8,34 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutput;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 
 public final class UpdateToken implements Serializable {
-    private final IndexAddress address;
-    private final EncryptedUpdateTuple encryptedTuple;
+    private final List<UpdateTokenItem> items;
     private final EncryptedUpdateCounter encryptedUpdateCounter;
 
-    public UpdateToken(IndexAddress address, EncryptedUpdateTuple encryptedTuple,
-                       EncryptedUpdateCounter encryptedUpdateCounter) {
-        if (address == null || encryptedTuple == null || encryptedUpdateCounter == null) {
-            throw new IllegalArgumentException("address, encryptedTuple or encryptedUpdateCounter cannot be null");
+    public UpdateToken(List<UpdateTokenItem> items, EncryptedUpdateCounter encryptedUpdateCounter) {
+        if (items == null || items.isEmpty() || encryptedUpdateCounter == null) {
+            throw new IllegalArgumentException("items cannot be null or empty and encryptedUpdateCounter cannot be null");
         }
-        this.address = address;
-        this.encryptedTuple = encryptedTuple;
+
+        List<UpdateTokenItem> normalizedItems = new ArrayList<UpdateTokenItem>(items.size());
+        for (UpdateTokenItem item : items) {
+            if (item == null) {
+                throw new IllegalArgumentException("items cannot contain null values");
+            }
+            normalizedItems.add(item);
+        }
+
+        this.items = Collections.unmodifiableList(normalizedItems);
         this.encryptedUpdateCounter = encryptedUpdateCounter;
     }
 
-    public IndexAddress address() {
-        return address;
-    }
-
-    public EncryptedUpdateTuple encryptedTuple() {
-        return encryptedTuple;
+    public List<UpdateTokenItem> items() {
+        return items;
     }
 
     public EncryptedUpdateCounter encryptedUpdateCounter() {
@@ -70,21 +75,19 @@ public final class UpdateToken implements Serializable {
             return false;
         }
         UpdateToken that = (UpdateToken) o;
-        return Objects.equals(address, that.address) &&
-                Objects.equals(encryptedTuple, that.encryptedTuple) &&
+        return Objects.equals(items, that.items) &&
                 Objects.equals(encryptedUpdateCounter, that.encryptedUpdateCounter);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(address, encryptedTuple, encryptedUpdateCounter);
+        return Objects.hash(items, encryptedUpdateCounter);
     }
 
     @Override
     public String toString() {
         return "UpdateToken[" +
-                "address=" + address +
-                ", encryptedTuple=" + encryptedTuple +
+                "items=" + items +
                 ", encryptedUpdateCounter=" + encryptedUpdateCounter +
                 ']';
     }

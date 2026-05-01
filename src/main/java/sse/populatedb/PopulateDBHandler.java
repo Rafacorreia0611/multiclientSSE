@@ -11,11 +11,12 @@ import javax.crypto.SecretKey;
 import sse.dataset.KeywordDocIdsEntry;
 import sse.dataset.KeywordDocIdsReader;
 import sse.demo.client.ConfidentialClientAdapter;
-import sse.domain.EncryptedUpdateTuple;
 import sse.domain.InitializationMaterial;
+import sse.domain.PendingKeywordUpdates;
+import sse.domain.PreparedKeywordUpdates;
 import sse.domain.State;
-import sse.domain.populatedb.BulkUpdateRequest;
-import sse.domain.populatedb.PendingKeywordUpdates;
+import sse.domain.UpdateOp;
+import sse.domain.UpdateToken;
 import sse.facade.SseClientFacade;
 
 public final class PopulateDBHandler {
@@ -84,7 +85,11 @@ public final class PopulateDBHandler {
                     int availableSlots = batchSize - pendingTupleKeys.size();
                     int end = Math.min(start + availableSlots, docIds.size());
                     List<String> batchDocIds = docIds.subList(start, end);
-                    PreparedKeywordUpdates preparedUpdates = preparePendingUpdates(entry.keyword(), batchDocIds);
+                    PreparedKeywordUpdates preparedUpdates = sseClientFacade.prepareKeywordUpdates(
+                            entry.keyword(),
+                            batchDocIds,
+                            UpdateOp.ADD
+                    );
 
                     pendingUpdates.add(preparedUpdates.pendingUpdates());
                     pendingTupleKeys.addAll(preparedUpdates.tupleKeys());
@@ -144,40 +149,27 @@ public final class PopulateDBHandler {
         }
     }
 
-    private PreparedKeywordUpdates preparePendingUpdates(String keyword, List<String> docIds) {
-        List<EncryptedUpdateTuple> encryptedTuples = new ArrayList<EncryptedUpdateTuple>(docIds.size());
-        List<SecretKey> tupleKeys = new ArrayList<SecretKey>(docIds.size());
-
-        for (int i = 0; i < docIds.size(); i++) {
-            SecretKey tupleKey = sseClientFacade.generateTupleSecretKey();
-            tupleKeys.add(tupleKey);
-            encryptedTuples.add(sseClientFacade.generateEncryptedUpdateTuple(docIds.get(i), true, tupleKey));
-        }
-
-        return new PreparedKeywordUpdates(new PendingKeywordUpdates(keyword, encryptedTuples), tupleKeys);
-    }
-
     private SentBatch sendPendingBatch(List<PendingKeywordUpdates> pendingUpdates, List<SecretKey> pendingTupleKeys,
                                        SecretKey tokenGenKey, SecretKey updateCounterKey, State currentState) {
-        BulkUpdateRequest request = sseClientFacade.generateBulkUpdateRequest(
+        UpdateToken updateToken = sseClientFacade.generateUpdateToken(
                 tokenGenKey,
                 updateCounterKey,
                 currentState,
                 pendingUpdates
         );
-        if (request.items().size() != pendingTupleKeys.size()) {
-            throw new IllegalStateException("Bulk update item/key count mismatch: items="
-                    + request.items().size() + ", keys=" + pendingTupleKeys.size());
+        if (updateToken.items().size() != pendingTupleKeys.size()) {
+            throw new IllegalStateException("Update item/key count mismatch: items="
+                    + updateToken.items().size() + ", keys=" + pendingTupleKeys.size());
         }
 
         SecretKey[] tupleKeys = pendingTupleKeys.toArray(new SecretKey[pendingTupleKeys.size()]);
-        if (!adapter.sendBulkUpdateRequest(request, tupleKeys)) {
-            throw new IllegalStateException("Server rejected bulk update batch");
+        if (!adapter.sendUpdateRequest(updateToken, tupleKeys)) {
+            throw new IllegalStateException("Server rejected update batch");
         }
 
         return new SentBatch(
-                new State(currentState.searchCounter(), request.encryptedUpdateCounter()),
-                request.items().size()
+                new State(currentState.searchCounter(), updateToken.encryptedUpdateCounter()),
+                updateToken.items().size()
         );
     }
 
@@ -239,24 +231,6 @@ public final class PopulateDBHandler {
 
         public long sentBatches() {
             return sentBatches;
-        }
-    }
-
-    private static final class PreparedKeywordUpdates {
-        private final PendingKeywordUpdates pendingUpdates;
-        private final List<SecretKey> tupleKeys;
-
-        private PreparedKeywordUpdates(PendingKeywordUpdates pendingUpdates, List<SecretKey> tupleKeys) {
-            this.pendingUpdates = pendingUpdates;
-            this.tupleKeys = tupleKeys;
-        }
-
-        private PendingKeywordUpdates pendingUpdates() {
-            return pendingUpdates;
-        }
-
-        private List<SecretKey> tupleKeys() {
-            return tupleKeys;
         }
     }
 

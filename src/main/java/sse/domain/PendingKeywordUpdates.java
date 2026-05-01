@@ -1,11 +1,9 @@
-package sse.domain.populatedb;
+package sse.domain;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-
-import sse.domain.EncryptedUpdateTuple;
 
 public final class PendingKeywordUpdates {
 
@@ -13,7 +11,7 @@ public final class PendingKeywordUpdates {
     private final List<EncryptedUpdateTuple> encryptedTuples;
 
     public PendingKeywordUpdates(String keyword, List<EncryptedUpdateTuple> encryptedTuples) {
-        if (keyword == null || keyword.isEmpty() || encryptedTuples == null || encryptedTuples.isEmpty()) {
+        if (keyword == null || keyword.trim().isEmpty() || encryptedTuples == null || encryptedTuples.isEmpty()) {
             throw new IllegalArgumentException("keyword and encryptedTuples cannot be null or empty");
         }
 

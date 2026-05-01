@@ -18,13 +18,14 @@ import sse.crypto.UpdateCounterEncryption;
 import sse.domain.EncryptedUpdateCounter;
 import sse.domain.EncryptedUpdateTuple;
 import sse.domain.InitializationMaterial;
+import sse.domain.PendingKeywordUpdates;
+import sse.domain.PreparedKeywordUpdates;
 import sse.domain.SearchToken;
 import sse.domain.State;
 import sse.domain.UpdateToken;
 import sse.domain.UpdateTuple;
 import sse.domain.KeywordToken;
-import sse.domain.populatedb.BulkUpdateRequest;
-import sse.domain.populatedb.PendingKeywordUpdates;
+import sse.domain.UpdateOp;
 import sse.service.client.SearchTokenService;
 import sse.service.client.UpdateTokenService;
 
@@ -74,31 +75,14 @@ public final class SseClientFacade {
         return searchTokenService.generateSearchToken(tokenGenKey, updateCounterKey, state, keyword);
     }
 
-    public EncryptedUpdateTuple generateEncryptedUpdateTuple(String docId, boolean isAdd, SecretKey encryptionKey) {
-        return updateTokenService.generateEncryptedUpdateTuple(docId, isAdd, encryptionKey);
+    public PreparedKeywordUpdates prepareKeywordUpdates(String keyword, List<String> docIds, UpdateOp operation) {
+        return updateTokenService.prepareKeywordUpdates(keyword, docIds, operation);
     }
 
     public UpdateToken generateUpdateToken(SecretKey tokenGenKey, SecretKey updateCounterKey,
-                                           State state, String keyword, EncryptedUpdateTuple encryptedTuple) {
-        return updateTokenService.generateUpdateToken(tokenGenKey, updateCounterKey, state, keyword, encryptedTuple);
-    }
-
-    public BulkUpdateRequest generateBulkUpdateRequest(SecretKey tokenGenKey, SecretKey updateCounterKey,
-                                                       State state, String keyword,
-                                                       List<EncryptedUpdateTuple> encryptedTuples) {
-        return updateTokenService.generateBulkUpdateRequest(
-                tokenGenKey,
-                updateCounterKey,
-                state,
-                keyword,
-                encryptedTuples
-        );
-    }
-
-    public BulkUpdateRequest generateBulkUpdateRequest(SecretKey tokenGenKey, SecretKey updateCounterKey,
-                                                       State state,
-                                                       List<PendingKeywordUpdates> pendingUpdates) {
-        return updateTokenService.generateBulkUpdateRequest(
+                                           State state,
+                                           List<PendingKeywordUpdates> pendingUpdates) {
+        return updateTokenService.generateUpdateToken(
                 tokenGenKey,
                 updateCounterKey,
                 state,
