@@ -29,19 +29,19 @@ public final class BenchmarkResultWriter implements Closeable {
         }
     }
 
-    public void writeHeader() throws IOException {
+    public void writeSearchHeader() throws IOException {
         writer.write("scenario,operation,run,keyword,doc_count,bucket,cache_mode,latency_ns");
         writer.newLine();
     }
 
-    public void writeSample(String scenarioName,
-                            BenchmarkOperation operation,
-                            int run,
-                            String keyword,
-                            int docCount,
-                            String bucket,
-                            String cacheMode,
-                            long latencyNanos) throws IOException {
+    public void writeSearchSample(String scenarioName,
+                                  BenchmarkOperation operation,
+                                  int run,
+                                  String keyword,
+                                  int docCount,
+                                  String bucket,
+                                  String cacheMode,
+                                  long latencyNanos) throws IOException {
         writer.write(csvValue(scenarioName));
         writer.write(',');
         writer.write(csvValue(operation.name()));
@@ -55,6 +55,41 @@ public final class BenchmarkResultWriter implements Closeable {
         writer.write(csvValue(bucket));
         writer.write(',');
         writer.write(csvValue(cacheMode));
+        writer.write(',');
+        writer.write(Long.toString(latencyNanos));
+        writer.newLine();
+        writer.flush();
+    }
+
+    public void writeUpdateHeader() throws IOException {
+        writer.write("scenario,operation,run,phase,associations_per_update,keyword_count,doc_id_count,payload_id,latency_ns");
+        writer.newLine();
+    }
+
+    public void writeUpdateSample(String scenarioName,
+                                  BenchmarkOperation operation,
+                                  int run,
+                                  String phase,
+                                  int associationsPerUpdate,
+                                  int keywordCount,
+                                  int docIdCount,
+                                  String payloadId,
+                                  long latencyNanos) throws IOException {
+        writer.write(csvValue(scenarioName));
+        writer.write(',');
+        writer.write(csvValue(operation.name()));
+        writer.write(',');
+        writer.write(Integer.toString(run));
+        writer.write(',');
+        writer.write(csvValue(phase));
+        writer.write(',');
+        writer.write(Integer.toString(associationsPerUpdate));
+        writer.write(',');
+        writer.write(Integer.toString(keywordCount));
+        writer.write(',');
+        writer.write(Integer.toString(docIdCount));
+        writer.write(',');
+        writer.write(csvValue(payloadId));
         writer.write(',');
         writer.write(Long.toString(latencyNanos));
         writer.newLine();

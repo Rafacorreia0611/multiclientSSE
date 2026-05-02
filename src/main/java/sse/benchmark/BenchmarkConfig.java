@@ -6,8 +6,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Properties;
 
 public final class BenchmarkConfig {
@@ -71,21 +71,40 @@ public final class BenchmarkConfig {
 
         String scenarioName = requireProperty(properties, "scenario");
         int clientId = parsePositiveInt(properties, "clientId");
-        int warmupIterations = parseNonNegativeInt(properties, "warmupPerBucket");
-        int measurementIterations = parsePositiveInt(properties, "measurementsPerBucket");
         String outputPath = resolvePath(configDirectory, requireProperty(properties, "outputPath"));
         String inputPath = resolvePath(configDirectory, requireProperty(properties, "inputPath"));
-        List<BenchmarkBucket> buckets = parseBuckets(requireProperty(properties, "buckets"));
 
-        return new BenchmarkConfig(
-                scenarioName,
-                clientId,
-                warmupIterations,
-                measurementIterations,
-                outputPath,
-                inputPath,
-                buckets
-        );
+        if ("search-latency-by-docs".equals(scenarioName)) {
+            int warmupIterations = parseNonNegativeInt(properties, "warmupPerBucket");
+            int measurementIterations = parsePositiveInt(properties, "measurementsPerBucket");
+            List<BenchmarkBucket> buckets = parseBuckets(requireProperty(properties, "buckets"));
+
+            return new BenchmarkConfig(
+                    scenarioName,
+                    clientId,
+                    warmupIterations,
+                    measurementIterations,
+                    outputPath,
+                    inputPath,
+                    buckets
+            );
+        }
+
+        if ("update-latency-by-associations".equals(scenarioName)) {
+            int warmupIterations = parseNonNegativeInt(properties, "warmupIterations");
+
+            return new BenchmarkConfig(
+                    scenarioName,
+                    clientId,
+                    warmupIterations,
+                    1,
+                    outputPath,
+                    inputPath,
+                    Collections.<BenchmarkBucket>emptyList()
+            );
+        }
+
+        throw new IllegalArgumentException("Unknown benchmark scenario: " + scenarioName);
     }
 
     private static Path parseConfigPath(String[] args) {

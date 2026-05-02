@@ -1,6 +1,7 @@
 package sse.benchmark;
 
 import sse.benchmark.scenario.SearchLatencyByDocsScenario;
+import sse.benchmark.scenario.UpdateLatencyByAssociationsScenario;
 
 public final class BenchmarkClient {
 
@@ -12,7 +13,7 @@ public final class BenchmarkClient {
         BenchmarkScenario scenario = selectScenario(config);
 
         try (BenchmarkResultWriter resultWriter = new BenchmarkResultWriter(config.outputPath())) {
-            resultWriter.writeHeader();
+            scenario.writeHeader(resultWriter);
             scenario.run(config, resultWriter);
         }
     }
@@ -21,6 +22,9 @@ public final class BenchmarkClient {
         String scenarioName = config.scenarioName();
         if ("search-latency-by-docs".equals(scenarioName)) {
             return new SearchLatencyByDocsScenario();
+        }
+        if ("update-latency-by-associations".equals(scenarioName)) {
+            return new UpdateLatencyByAssociationsScenario();
         }
 
         throw new IllegalArgumentException("Unknown benchmark scenario: " + scenarioName);

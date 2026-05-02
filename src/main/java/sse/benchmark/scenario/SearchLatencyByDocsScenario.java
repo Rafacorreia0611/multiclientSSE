@@ -1,5 +1,6 @@
 package sse.benchmark.scenario;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -28,6 +29,11 @@ public final class SearchLatencyByDocsScenario implements BenchmarkScenario {
     @Override
     public BenchmarkOperation operation() {
         return BenchmarkOperation.SEARCH;
+    }
+
+    @Override
+    public void writeHeader(BenchmarkResultWriter resultWriter) throws IOException {
+        resultWriter.writeSearchHeader();
     }
 
     @Override
@@ -159,7 +165,7 @@ public final class SearchLatencyByDocsScenario implements BenchmarkScenario {
                 List<String> freshResults = clientHandler.search(entry.keyword());
                 long freshEndTime = System.nanoTime();
                 validateResultCount(entry, freshResults);
-                resultWriter.writeSample(
+                resultWriter.writeSearchSample(
                         name(),
                         operation(),
                         run++,
@@ -174,7 +180,7 @@ public final class SearchLatencyByDocsScenario implements BenchmarkScenario {
                 List<String> cachedResults = clientHandler.search(entry.keyword());
                 long cachedEndTime = System.nanoTime();
                 validateResultCount(entry, cachedResults);
-                resultWriter.writeSample(
+                resultWriter.writeSearchSample(
                         name(),
                         operation(),
                         run++,
