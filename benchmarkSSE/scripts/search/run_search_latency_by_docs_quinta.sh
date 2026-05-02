@@ -2,8 +2,8 @@
 
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-DEFAULT_CONFIG="$ROOT_DIR/benchmarkSSE/config/search_latency_by_docs.properties"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+DEFAULT_CONFIG="$ROOT_DIR/benchmarkSSE/config/search/search_latency_by_docs.properties"
 DEFAULT_CLUSTER_CONFIG="$ROOT_DIR/benchmarkSSE/config/quinta.env"
 DEPLOY_SCRIPT="$ROOT_DIR/benchmarkSSE/scripts/quinta_deploy.sh"
 
@@ -300,7 +300,7 @@ generate_dataset() {
       ;;
     synthetic)
       echo "Generating synthetic dataset..."
-      python3 "$ROOT_DIR/benchmarkSSE/scripts/syntheticDataset.py" \
+      python3 "$ROOT_DIR/benchmarkSSE/scripts/datasets/syntheticDataset.py" \
         --output "$ABS_SYNTHETIC_OUTPUT_PATH" \
         --keywords-per-doc-count "$SYNTHETIC_KEYWORDS_PER_DOC_COUNT" \
         --doc-counts "$SYNTHETIC_DOC_COUNTS" \
@@ -417,9 +417,9 @@ verify_results() {
 }
 
 summarize_and_plot() {
-  python3 "$ROOT_DIR/benchmarkSSE/scripts/summarize_search_latency.py" --input "$ABS_OUTPUT_PATH" --output "$ABS_SUMMARY_PATH"
+  python3 "$ROOT_DIR/benchmarkSSE/scripts/search/summarize_search_latency.py" --input "$ABS_OUTPUT_PATH" --output "$ABS_SUMMARY_PATH"
   gnuplot -e "input_path='$ABS_SUMMARY_PATH'; mean_output_path='$ABS_MEAN_PLOT_PATH'; median_output_path='$ABS_MEDIAN_PLOT_PATH'" \
-    "$ROOT_DIR/benchmarkSSE/gnuplot/search_latency_by_docs_mean_median.gp"
+    "$ROOT_DIR/benchmarkSSE/gnuplot/search/search_latency_by_docs_mean_median.gp"
 }
 
 cleanup() {

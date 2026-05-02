@@ -2,14 +2,14 @@
 
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-DEFAULT_CONFIG="$ROOT_DIR/benchmarkSSE/config/search_latency_by_docs.properties"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+DEFAULT_CONFIG="$ROOT_DIR/benchmarkSSE/config/search/search_latency_by_docs.properties"
 CONFIG_PATH="$DEFAULT_CONFIG"
 REPLICA_LIST="4,7,10,13"
 
-DOCS_RUNNER="$ROOT_DIR/benchmarkSSE/scripts/run_search_latency_by_docs.sh"
-AGGREGATE_SCRIPT="$ROOT_DIR/benchmarkSSE/scripts/aggregate_search_latency_by_replicas.py"
-GNUPLOT_SCRIPT="$ROOT_DIR/benchmarkSSE/gnuplot/search_latency_by_replicas.gp"
+DOCS_RUNNER="$ROOT_DIR/benchmarkSSE/scripts/search/run_search_latency_by_docs.sh"
+AGGREGATE_SCRIPT="$ROOT_DIR/benchmarkSSE/scripts/search/aggregate_search_latency_by_replicas.py"
+GNUPLOT_SCRIPT="$ROOT_DIR/benchmarkSSE/gnuplot/search/search_latency_by_replicas.gp"
 
 usage() {
   cat >&2 <<EOF
