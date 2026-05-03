@@ -91,7 +91,7 @@ public final class BenchmarkConfig {
         }
 
         if ("update-latency-by-associations".equals(scenarioName)) {
-            int warmupIterations = parseNonNegativeInt(properties, "warmupIterations");
+            int warmupIterations = parseNonNegativeInt(properties, "warmupPayloadCount");
 
             return new BenchmarkConfig(
                     scenarioName,

@@ -21,8 +21,9 @@ class UpdatePayloadConfig:
     output_path: Path
     warmup_count: int
     warmup_associations: int
+    warmup_keywords_per_payload: int
     measure_associations: int
-    keywords_per_payload: int
+    measure_keywords_per_payload: int
     seed: int
 
     @property
@@ -59,16 +60,22 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Number of keyword-doc associations in each warmup payload.",
     )
     parser.add_argument(
+        "--warmup-keywords-per-payload",
+        required=True,
+        type=parse_positive_int,
+        help="Number of keywords used inside each warmup payload.",
+    )
+    parser.add_argument(
         "--measure-associations",
         required=True,
         type=parse_positive_int,
         help="Number of keyword-doc associations in the measured payload.",
     )
     parser.add_argument(
-        "--keywords-per-payload",
+        "--measure-keywords-per-payload",
         required=True,
         type=parse_positive_int,
-        help="Number of keywords used inside each payload.",
+        help="Number of keywords used inside the measured payload.",
     )
     parser.add_argument(
         "--seed",
@@ -106,8 +113,9 @@ def build_config(args: argparse.Namespace) -> UpdatePayloadConfig:
         output_path=Path(args.output),
         warmup_count=args.warmup_count,
         warmup_associations=args.warmup_associations,
+        warmup_keywords_per_payload=args.warmup_keywords_per_payload,
         measure_associations=args.measure_associations,
-        keywords_per_payload=args.keywords_per_payload,
+        measure_keywords_per_payload=args.measure_keywords_per_payload,
         seed=args.seed,
     )
     validate_config(config)
@@ -118,11 +126,11 @@ def validate_config(config: UpdatePayloadConfig) -> None:
     if config.output_path.exists() and config.output_path.is_dir():
         raise ValueError(f"Output path is a directory: {config.output_path}")
 
-    if config.warmup_count > 0 and config.keywords_per_payload > config.warmup_associations:
-        raise ValueError("keywords-per-payload cannot be greater than warmup-associations")
+    if config.warmup_count > 0 and config.warmup_keywords_per_payload > config.warmup_associations:
+        raise ValueError("warmup-keywords-per-payload cannot be greater than warmup-associations")
 
-    if config.keywords_per_payload > config.measure_associations:
-        raise ValueError("keywords-per-payload cannot be greater than measure-associations")
+    if config.measure_keywords_per_payload > config.measure_associations:
+        raise ValueError("measure-keywords-per-payload cannot be greater than measure-associations")
 
 
 def generate_payloads(config: UpdatePayloadConfig) -> None:
@@ -136,7 +144,7 @@ def generate_payloads(config: UpdatePayloadConfig) -> None:
                 phase="warmup",
                 payload_index=payload_index,
                 association_count=config.warmup_associations,
-                keywords_per_payload=config.keywords_per_payload,
+                keywords_per_payload=config.warmup_keywords_per_payload,
                 random_generator=random_generator,
             )
             write_payload(handle, payload)
@@ -146,7 +154,7 @@ def generate_payloads(config: UpdatePayloadConfig) -> None:
             phase="measure",
             payload_index=1,
             association_count=config.measure_associations,
-            keywords_per_payload=config.keywords_per_payload,
+            keywords_per_payload=config.measure_keywords_per_payload,
             random_generator=random_generator,
         )
         write_payload(handle, measure_payload)
@@ -223,9 +231,10 @@ def print_summary(config: UpdatePayloadConfig) -> None:
     print(f"  payloads: {config.payload_count}")
     print(f"  warmup payloads: {config.warmup_count}")
     print(f"  warmup associations per payload: {config.warmup_associations}")
+    print(f"  warmup keywords per payload: {config.warmup_keywords_per_payload}")
     print(f"  measure associations: {config.measure_associations}")
+    print(f"  measure keywords per payload: {config.measure_keywords_per_payload}")
     print(f"  total keyword-doc associations: {config.association_count}")
-    print(f"  keywords per payload: {config.keywords_per_payload}")
     print(f"  seed: {config.seed}")
 
 

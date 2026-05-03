@@ -5,15 +5,15 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 source "$ROOT_DIR/benchmarkSSE/scripts/common/quinta_benchmark_common.sh"
 
-DEFAULT_CONFIG="$ROOT_DIR/benchmarkSSE/config/search/search_latency_by_docs.properties"
+DEFAULT_CONFIG="$ROOT_DIR/benchmarkSSE/config/update/update_latency_by_associations.properties"
 DEFAULT_CLUSTER_CONFIG="$ROOT_DIR/benchmarkSSE/config/quinta.env"
 CONFIG_PATH="$DEFAULT_CONFIG"
 CLUSTER_CONFIG="$DEFAULT_CLUSTER_CONFIG"
 REPLICA_LIST="4,7,10"
 
-DOCS_RUNNER="$ROOT_DIR/benchmarkSSE/scripts/search/run_search_latency_by_docs_quinta.sh"
-AGGREGATE_SCRIPT="$ROOT_DIR/benchmarkSSE/scripts/search/aggregate_search_latency_by_replicas.py"
-GNUPLOT_SCRIPT="$ROOT_DIR/benchmarkSSE/gnuplot/search/search_latency_by_replicas.gp"
+ASSOCIATIONS_RUNNER="$ROOT_DIR/benchmarkSSE/scripts/update/run_update_latency_by_associations_quinta.sh"
+AGGREGATE_SCRIPT="$ROOT_DIR/benchmarkSSE/scripts/update/aggregate_update_latency_by_replicas.py"
+GNUPLOT_SCRIPT="$ROOT_DIR/benchmarkSSE/gnuplot/update/update_latency_by_replicas.gp"
 
 usage() {
   cat >&2 <<EOF
@@ -94,73 +94,14 @@ parse_args() {
   [[ "$CLUSTER_CONFIG" = /* ]] || CLUSTER_CONFIG="$ROOT_DIR/$CLUSTER_CONFIG"
 }
 
-get_property() {
-  local key="$1"
-  local value
-  value="$(sed -n "s/^${key}=//p" "$CONFIG_PATH" | tail -n 1)"
-  if [[ -z "$value" ]]; then
-    echo "Missing property '$key' in $CONFIG_PATH" >&2
-    exit 1
-  fi
-  printf '%s\n' "$value"
-}
-
-doc_counts_to_buckets() {
-  local raw_doc_counts="$1"
-  local compact_doc_counts doc_count buckets=""
-
-  compact_doc_counts="$(normalize_csv_list "$raw_doc_counts")"
-  if [[ -z "$compact_doc_counts" ]]; then
-    echo "syntheticDocCounts cannot be empty." >&2
-    exit 1
-  fi
-
-  IFS=',' read -r -a DOC_COUNT_BUCKET_VALUES <<< "$compact_doc_counts"
-  for doc_count in "${DOC_COUNT_BUCKET_VALUES[@]}"; do
-    if ! [[ "$doc_count" =~ ^[0-9]+$ ]] || [[ "$doc_count" -lt 1 ]]; then
-      echo "syntheticDocCounts values must be positive integers: $doc_count" >&2
-      exit 1
-    fi
-    [[ -z "$buckets" ]] || buckets+=","
-    buckets+="${doc_count}:${doc_count}"
-  done
-
-  printf '%s\n' "$buckets"
-}
-
-load_bucket_config() {
-  local bucket dataset_type
-
-  dataset_type="$(get_property datasetType)"
-  case "$dataset_type" in
-    enron)
-      BUCKET_LIST="$(get_property processorBuckets)"
-      ;;
-    synthetic)
-      BUCKET_LIST="$(doc_counts_to_buckets "$(get_property syntheticDocCounts)")"
-      ;;
-    *)
-      echo "datasetType must be either 'enron' or 'synthetic'." >&2
-      exit 1
-      ;;
-  esac
-  BUCKET_SPECS="${BUCKET_LIST//,/ }"
-  BUCKET_LABELS=""
-
-  for bucket in $BUCKET_SPECS; do
-    [[ -z "$BUCKET_LABELS" ]] || BUCKET_LABELS+=" "
-    BUCKET_LABELS+="${bucket/:/-}"
-  done
-}
-
 prepare_outputs() {
   SWEEP_DATE="$(date +%d_%m_%Y)"
-  SWEEP_NAME="$(date +%H_%M_%S)_quinta_replica_sweep"
+  SWEEP_NAME="$(date +%H_%M_%S)_quinta_update_replica_sweep"
   SWEEP_RESULTS_DIR="$ROOT_DIR/benchmarkSSE/results/data/$SWEEP_DATE/$SWEEP_NAME"
   SWEEP_PLOTS_DIR="$ROOT_DIR/benchmarkSSE/plots/$SWEEP_DATE/$SWEEP_NAME"
   SWEEP_LOG_DIR="$ROOT_DIR/benchmarkSSE/results/logs/$SWEEP_DATE/$SWEEP_NAME"
-  SWEEP_SUMMARY_PATH="$SWEEP_RESULTS_DIR/search_latency_by_replicas_summary.tsv"
-  SWEEP_LOG_PATH="$SWEEP_LOG_DIR/run_search_latency_by_replicas_quinta.log"
+  SWEEP_SUMMARY_PATH="$SWEEP_RESULTS_DIR/update_latency_by_replicas_summary.tsv"
+  SWEEP_LOG_PATH="$SWEEP_LOG_DIR/run_update_latency_by_replicas_quinta.log"
 
   mkdir -p "$SWEEP_RESULTS_DIR" "$SWEEP_PLOTS_DIR" "$SWEEP_LOG_DIR"
 }
@@ -175,16 +116,16 @@ latest_summary_for_run() {
     find "$ROOT_DIR/benchmarkSSE/results/data" \
       -maxdepth 3 \
       -type f \
-      -name "search_latency_by_docs_summary.tsv" \
+      -name "update_latency_by_associations_summary.tsv" \
       -newer "$marker_path" \
-      -path "*_r${replica_count}_f${fault_count}/search_latency_by_docs_summary.tsv" \
+      -path "*_quinta_update_assoc_r${replica_count}_f${fault_count}_db*/update_latency_by_associations_summary.tsv" \
       -print |
       sort |
       tail -n 1
   )"
 
   if [[ -z "$summary_path" ]]; then
-    echo "Could not find summary for replicaCount=$replica_count f=$fault_count." >&2
+    echo "Could not find update summary for replicaCount=$replica_count f=$fault_count." >&2
     exit 1
   fi
 
@@ -196,13 +137,13 @@ run_one_benchmark() {
   local fault_count marker_path summary_path
 
   fault_count="$(fault_count_for "$replica_count")"
-  marker_path="$(mktemp "$ROOT_DIR/benchmarkSSE/results/data/.quinta_replica_sweep_marker.XXXXXX")"
+  marker_path="$(mktemp "$ROOT_DIR/benchmarkSSE/results/data/.quinta_update_replica_sweep_marker.XXXXXX")"
   {
     echo
-    echo "===== Running Quinta search latency benchmark with replicaCount=$replica_count f=$fault_count ====="
+    echo "===== Running Quinta update latency benchmark with replicaCount=$replica_count f=$fault_count ====="
   } | tee -a "$SWEEP_LOG_PATH"
 
-  if ! "$DOCS_RUNNER" --config "$CONFIG_PATH" --cluster-config "$CLUSTER_CONFIG" --replicas "$replica_count" 2>&1 | tee -a "$SWEEP_LOG_PATH"; then
+  if ! "$ASSOCIATIONS_RUNNER" --config "$CONFIG_PATH" --cluster-config "$CLUSTER_CONFIG" --replicas "$replica_count" 2>&1 | tee -a "$SWEEP_LOG_PATH"; then
     rm -f "$marker_path"
     echo "Benchmark failed for replicaCount=$replica_count." >&2
     exit 1
@@ -216,56 +157,46 @@ run_one_benchmark() {
 }
 
 aggregate_results() {
-  echo "Aggregating ${#SUMMARY_PATHS[@]} summary file(s)..." | tee -a "$SWEEP_LOG_PATH"
+  echo "Aggregating ${#SUMMARY_PATHS[@]} update summary file(s)..." | tee -a "$SWEEP_LOG_PATH"
   python3 "$AGGREGATE_SCRIPT" --output "$SWEEP_SUMMARY_PATH" "${SUMMARY_PATHS[@]}" 2>&1 | tee -a "$SWEEP_LOG_PATH"
 }
 
 generate_plots() {
-  echo "Generating Quinta replica sweep plots..." | tee -a "$SWEEP_LOG_PATH"
+  echo "Generating Quinta update replica sweep plot..." | tee -a "$SWEEP_LOG_PATH"
   gnuplot \
-    -e "input_path='$SWEEP_SUMMARY_PATH'; output_dir='$SWEEP_PLOTS_DIR'; bucket_specs='$BUCKET_SPECS'; bucket_labels='$BUCKET_LABELS'" \
+    -e "input_path='$SWEEP_SUMMARY_PATH'; output_dir='$SWEEP_PLOTS_DIR'; replica_values='${REPLICA_COUNTS[*]}'" \
     "$GNUPLOT_SCRIPT" 2>&1 | tee -a "$SWEEP_LOG_PATH"
 }
 
 verify_outputs() {
-  local plot_name
-
   if [[ ! -s "$SWEEP_SUMMARY_PATH" ]]; then
-    echo "Aggregated summary is missing or empty: $SWEEP_SUMMARY_PATH" >&2
+    echo "Aggregated update replica summary is missing or empty: $SWEEP_SUMMARY_PATH" >&2
     exit 1
   fi
 
-  for plot_name in \
-    search_latency_by_replicas_median_fresh.png \
-    search_latency_by_replicas_median_cached.png \
-    search_latency_by_replicas_mean_fresh.png \
-    search_latency_by_replicas_mean_cached.png; do
-    if [[ ! -s "$SWEEP_PLOTS_DIR/$plot_name" ]]; then
-      echo "Plot is missing or empty: $SWEEP_PLOTS_DIR/$plot_name" >&2
-      exit 1
-    fi
-  done
+  if [[ ! -s "$SWEEP_PLOTS_DIR/update_latency_by_replicas.png" ]]; then
+    echo "Update replica plot is missing or empty: $SWEEP_PLOTS_DIR/update_latency_by_replicas.png" >&2
+    exit 1
+  fi
 }
 
 main() {
   parse_args "$@"
   parse_replica_list
-  ensure_executable_exists "$DOCS_RUNNER"
+  ensure_executable_exists "$ASSOCIATIONS_RUNNER"
   ensure_file_exists "$AGGREGATE_SCRIPT"
   ensure_file_exists "$GNUPLOT_SCRIPT"
   ensure_file_exists "$CONFIG_PATH"
   ensure_file_exists "$CLUSTER_CONFIG"
   ensure_command_exists python3
   ensure_command_exists gnuplot
-  load_bucket_config
 
   SUMMARY_PATHS=()
 
   prepare_outputs
-  echo "Quinta replica sweep: ${REPLICA_COUNTS[*]}" | tee -a "$SWEEP_LOG_PATH"
+  echo "Quinta update replica sweep: ${REPLICA_COUNTS[*]}" | tee -a "$SWEEP_LOG_PATH"
   echo "Config: $CONFIG_PATH" | tee -a "$SWEEP_LOG_PATH"
   echo "Cluster config: $CLUSTER_CONFIG" | tee -a "$SWEEP_LOG_PATH"
-  echo "Buckets: $BUCKET_LIST" | tee -a "$SWEEP_LOG_PATH"
 
   local replica_count
   for replica_count in "${REPLICA_COUNTS[@]}"; do
@@ -276,8 +207,8 @@ main() {
   generate_plots
   verify_outputs
 
-  echo "Quinta replica sweep summary written to $SWEEP_SUMMARY_PATH"
-  echo "Quinta replica sweep plots written to $SWEEP_PLOTS_DIR"
+  echo "Quinta update replica sweep summary written to $SWEEP_SUMMARY_PATH"
+  echo "Quinta update replica sweep plot written to $SWEEP_PLOTS_DIR"
 }
 
 main "$@"

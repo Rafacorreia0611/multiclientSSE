@@ -6,6 +6,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 DEFAULT_CONFIG="$ROOT_DIR/benchmarkSSE/config/search/search_latency_by_docs.properties"
 DEFAULT_CLUSTER_CONFIG="$ROOT_DIR/benchmarkSSE/config/quinta.env"
 DEPLOY_SCRIPT="$ROOT_DIR/benchmarkSSE/scripts/quinta_deploy.sh"
+COMMON_SCRIPT="$ROOT_DIR/benchmarkSSE/scripts/common/quinta_benchmark_common.sh"
 
 CONFIG_PATH="$DEFAULT_CONFIG"
 CLUSTER_CONFIG="$DEFAULT_CLUSTER_CONFIG"
@@ -13,33 +14,13 @@ REPLICA_COUNT_OVERRIDE=""
 REPLICA_COUNT_SOURCE="config"
 CLEANUP_DONE=0
 
+# shellcheck source=../common/quinta_benchmark_common.sh
+source "$COMMON_SCRIPT"
+
 usage() {
   cat >&2 <<EOF
 Usage: $(basename "$0") [--config PATH] [--cluster-config PATH] [--replicas N]
 EOF
-}
-
-die() {
-  echo "Error: $*" >&2
-  exit 1
-}
-
-ssh_remote() {
-  ssh -n \
-    -o BatchMode=yes \
-    -o ConnectTimeout="${QUINTA_SSH_CONNECT_TIMEOUT_SECONDS:-10}" \
-    -o ServerAliveInterval="${QUINTA_SSH_SERVER_ALIVE_INTERVAL_SECONDS:-5}" \
-    -o ServerAliveCountMax="${QUINTA_SSH_SERVER_ALIVE_COUNT_MAX:-2}" \
-    "$@"
-}
-
-scp_remote() {
-  scp -q \
-    -o BatchMode=yes \
-    -o ConnectTimeout="${QUINTA_SSH_CONNECT_TIMEOUT_SECONDS:-10}" \
-    -o ServerAliveInterval="${QUINTA_SSH_SERVER_ALIVE_INTERVAL_SECONDS:-5}" \
-    -o ServerAliveCountMax="${QUINTA_SSH_SERVER_ALIVE_COUNT_MAX:-2}" \
-    "$@"
 }
 
 parse_args() {
@@ -90,61 +71,6 @@ parse_args() {
   CONFIG_DIR="$(cd "$(dirname "$CONFIG_PATH")" && pwd)"
 }
 
-get_property() {
-  local key="$1"
-  local value
-  value="$(sed -n "s/^${key}=//p" "$CONFIG_PATH" | tail -n 1)"
-  [[ -n "$value" ]] || die "Missing property '$key' in $CONFIG_PATH"
-  printf '%s\n' "$value"
-}
-
-resolve_config_path() {
-  local raw_path="$1"
-  if [[ "$raw_path" = /* ]]; then
-    printf '%s\n' "$raw_path"
-  else
-    printf '%s/%s\n' "$CONFIG_DIR" "$raw_path"
-  fi
-}
-
-place_path_in_run_dir() {
-  local path="$1"
-  local run_dir="$2"
-  printf '%s/%s/%s\n' "$(dirname "$path")" "$run_dir" "$(basename "$path")"
-}
-
-validate_positive_integer() {
-  local value="$1"
-  local label="$2"
-  [[ "$value" =~ ^[0-9]+$ && "$value" -gt 0 ]] || die "$label must be a positive integer"
-}
-
-validate_integer() {
-  local value="$1"
-  local label="$2"
-  [[ "$value" =~ ^-?[0-9]+$ ]] || die "$label must be an integer"
-}
-
-validate_boolean() {
-  local value="$1"
-  local label="$2"
-  [[ "$value" == "true" || "$value" == "false" ]] || die "$label must be true or false"
-}
-
-normalize_csv_list() {
-  printf '%s' "$1" | tr -d '[:space:]'
-}
-
-csv_item_count() {
-  local list
-  list="$(normalize_csv_list "$1")"
-  [[ -n "$list" ]] || {
-    printf '0\n'
-    return
-  }
-  printf '%s\n' "$list" | awk -F',' '{print NF}'
-}
-
 doc_counts_to_buckets() {
   local raw_doc_counts="$1"
   local compact_doc_counts doc_count buckets=""
@@ -160,10 +86,6 @@ doc_counts_to_buckets() {
   done
 
   printf '%s\n' "$buckets"
-}
-
-calculate_fault_count() {
-  FAULT_COUNT=$(((REPLICA_COUNT - 1) / 3))
 }
 
 load_config() {
@@ -309,24 +231,6 @@ generate_dataset() {
   esac
 
   validate_existing_dataset || die "Generated dataset line count did not match config"
-}
-
-deploy_arg() {
-  "$DEPLOY_SCRIPT" "$1" \
-    --cluster-config "$CLUSTER_CONFIG" \
-    --replicas "$REPLICA_COUNT" \
-    --clients "$DEPLOY_CLIENT_COUNT" \
-    --run-name "$RUN_NAME"
-}
-
-client_node() {
-  local client_index="$1"
-  local node_index=$(((REPLICA_COUNT + client_index) % ${#QUINTA_NODES[@]}))
-  printf '%s%s\n' "$QUINTA_SSH_PREFIX" "${QUINTA_NODES[$node_index]}"
-}
-
-remote_run_dir() {
-  printf '%s/%s\n' "$QUINTA_REMOTE_ROOT" "$RUN_NAME"
 }
 
 write_local_runtime_config() {
