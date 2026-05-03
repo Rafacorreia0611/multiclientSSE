@@ -39,7 +39,7 @@ OUTPUT_COLUMNS = (
 )
 
 RUN_DIR_PATTERN = re.compile(
-    r"_quinta_r(?P<replicas>[0-9]+)_f(?P<faults>[0-9]+)_db(?P<db>[0-9]+)_upd(?P<upd>[0-9]+)$"
+    r"_quinta_r(?P<replicas>[0-9]+)_f(?P<faults>[0-9]+)_db(?P<db>[0-9]+)_upd(?P<upd>[0-9]+)_kw(?P<keywords>[0-9]+)$"
 )
 
 
@@ -60,7 +60,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def run_metadata(input_path: Path) -> tuple[int, int, int, int, str]:
+def run_metadata(input_path: Path) -> tuple[int, int, int, int, int, str]:
     run_dir = input_path.parent.name
     match = RUN_DIR_PATTERN.search(run_dir)
     if match is None:
@@ -71,6 +71,7 @@ def run_metadata(input_path: Path) -> tuple[int, int, int, int, str]:
         int(match.group("faults")),
         int(match.group("db")),
         int(match.group("upd")),
+        int(match.group("keywords")),
         run_dir,
     )
 
@@ -84,7 +85,14 @@ def read_row(input_path: Path) -> dict[str, str]:
     if not input_path.is_file():
         raise FileNotFoundError(f"Input CSV not found: {input_path}")
 
-    replica_count, fault_count, target_db_associations, expected_update_associations, source_run = run_metadata(input_path)
+    (
+        replica_count,
+        fault_count,
+        target_db_associations,
+        expected_update_associations,
+        expected_keyword_count,
+        source_run,
+    ) = run_metadata(input_path)
 
     with input_path.open("r", encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle)
@@ -95,7 +103,7 @@ def read_row(input_path: Path) -> dict[str, str]:
         raise ValueError(f"{input_path} must contain exactly one measured row, found {len(rows)}")
 
     row = {key: (value or "").strip() for key, value in rows[0].items()}
-    validate_update_row(row, input_path, expected_update_associations)
+    validate_update_row(row, input_path, expected_update_associations, expected_keyword_count)
 
     latency_ns = int(row["latency_ns"])
     return {
@@ -113,7 +121,12 @@ def read_row(input_path: Path) -> dict[str, str]:
     }
 
 
-def validate_update_row(row: dict[str, str], input_path: Path, expected_update_associations: int) -> None:
+def validate_update_row(
+    row: dict[str, str],
+    input_path: Path,
+    expected_update_associations: int,
+    expected_keyword_count: int,
+) -> None:
     if row["scenario"] != "update-latency-by-associations":
         raise ValueError(f"{input_path} has unexpected scenario: {row['scenario']}")
     if row["operation"] != "UPDATE":
@@ -130,7 +143,13 @@ def validate_update_row(row: dict[str, str], input_path: Path, expected_update_a
             f"value {expected_update_associations}"
         )
 
-    parse_positive_int(row["keyword_count"], "keyword_count", input_path)
+    keyword_count = parse_positive_int(row["keyword_count"], "keyword_count", input_path)
+    if keyword_count != expected_keyword_count:
+        raise ValueError(
+            f"{input_path} keyword_count {keyword_count} does not match run directory "
+            f"value {expected_keyword_count}"
+        )
+
     parse_positive_int(row["doc_id_count"], "doc_id_count", input_path)
     parse_positive_int(row["latency_ns"], "latency_ns", input_path)
 

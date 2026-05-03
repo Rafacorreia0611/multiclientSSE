@@ -86,11 +86,11 @@ load_config() {
   BASE_SYNTHETIC_SEED="$(get_property baseSyntheticSeed)"
 
   PAYLOAD_OUTPUT_PATH="$(get_property payloadOutputPath)"
-  MEASURE_ASSOCIATION_COUNTS="$(normalize_csv_list "$(get_property measureAssociationCounts)")"
+  MEASURE_KEYWORD_COUNTS="$(normalize_csv_list "$(get_property measureKeywordCounts)")"
+  MEASURE_DOC_IDS_PER_KEYWORD="$(get_property measureDocIdsPerKeyword)"
   WARMUP_PAYLOAD_COUNT="$(get_property warmupPayloadCount)"
   WARMUP_ASSOCIATIONS_PER_PAYLOAD="$(get_property warmupAssociationsPerPayload)"
   WARMUP_KEYWORDS_PER_PAYLOAD="$(get_property warmupKeywordsPerPayload)"
-  MEASURE_KEYWORDS_PER_PAYLOAD="$(get_property measureKeywordsPerPayload)"
   PAYLOAD_SEED="$(get_property payloadSeed)"
 
   REPLICA_COUNT="$(get_property replicaCount)"
@@ -138,7 +138,6 @@ validate_config() {
   [[ "$WARMUP_PAYLOAD_COUNT" -ge 0 ]] || die "warmupPayloadCount must be non-negative"
   validate_positive_integer "$WARMUP_ASSOCIATIONS_PER_PAYLOAD" "warmupAssociationsPerPayload"
   validate_positive_integer "$WARMUP_KEYWORDS_PER_PAYLOAD" "warmupKeywordsPerPayload"
-  validate_positive_integer "$MEASURE_KEYWORDS_PER_PAYLOAD" "measureKeywordsPerPayload"
   validate_integer "$PAYLOAD_SEED" "payloadSeed"
   validate_boolean "$TIMESTAMP_OUTPUTS" "timestampOutputs"
   validate_client_dir "$POPULATE_CLIENT_DIR" "populateClientDir"
@@ -146,7 +145,7 @@ validate_config() {
   [[ -f "$ABS_SYNTHETIC_DATASET_SCRIPT" ]] || die "Synthetic dataset script not found: $ABS_SYNTHETIC_DATASET_SCRIPT"
   [[ -f "$ABS_UPDATE_PAYLOAD_SCRIPT" ]] || die "Update payload script not found: $ABS_UPDATE_PAYLOAD_SCRIPT"
   [[ -f "$ABS_AGGREGATE_SCRIPT" ]] || die "Update aggregate script not found: $ABS_AGGREGATE_SCRIPT"
-  [[ -n "$MEASURE_ASSOCIATION_COUNTS" ]] || die "measureAssociationCounts cannot be empty"
+  validate_measure_payload_config
 
   POPULATE_CLIENT_INDEX="${POPULATE_CLIENT_DIR#cli}"
   BENCHMARK_CLIENT_INDEX="${BENCHMARK_CLIENT_DIR#cli}"
@@ -166,11 +165,45 @@ validate_config() {
     die "warmupKeywordsPerPayload cannot be greater than warmupAssociationsPerPayload when warmupPayloadCount > 0"
   fi
 
-  IFS=',' read -r -a MEASURE_ASSOCIATION_VALUES <<< "$MEASURE_ASSOCIATION_COUNTS"
-  for measure_associations in "${MEASURE_ASSOCIATION_VALUES[@]}"; do
-    validate_positive_integer "$measure_associations" "measureAssociationCounts"
-    [[ "$MEASURE_KEYWORDS_PER_PAYLOAD" -le "$measure_associations" ]] || die "measureKeywordsPerPayload cannot be greater than measureAssociationCounts value $measure_associations"
+}
+
+append_measure_value() {
+  local measure_associations="$1"
+  local measure_keywords="$2"
+
+  MEASURE_ASSOCIATION_VALUES+=("$measure_associations")
+  MEASURE_KEYWORD_VALUES+=("$measure_keywords")
+}
+
+validate_measure_payload_config() {
+  local measure_keyword_count measure_associations
+
+  MEASURE_ASSOCIATION_VALUES=()
+  MEASURE_KEYWORD_VALUES=()
+  MEASURE_ASSOCIATION_COUNTS=""
+
+  [[ -n "$MEASURE_KEYWORD_COUNTS" ]] || die "measureKeywordCounts cannot be empty"
+  validate_positive_integer "$MEASURE_DOC_IDS_PER_KEYWORD" "measureDocIdsPerKeyword"
+
+  IFS=',' read -r -a RAW_MEASURE_KEYWORD_VALUES <<< "$MEASURE_KEYWORD_COUNTS"
+  for measure_keyword_count in "${RAW_MEASURE_KEYWORD_VALUES[@]}"; do
+    validate_positive_integer "$measure_keyword_count" "measureKeywordCounts"
+    measure_associations=$((measure_keyword_count * MEASURE_DOC_IDS_PER_KEYWORD))
+    append_measure_value "$measure_associations" "$measure_keyword_count"
   done
+  MEASURE_ASSOCIATION_COUNTS="$(join_csv "${MEASURE_ASSOCIATION_VALUES[@]}")"
+}
+
+join_csv() {
+  local output=""
+  local value
+
+  for value in "$@"; do
+    [[ -z "$output" ]] || output+=","
+    output+="$value"
+  done
+
+  printf '%s\n' "$output"
 }
 
 prepare_aggregate_paths() {
@@ -194,6 +227,8 @@ prepare_aggregate_paths() {
     printf 'Replica count: %s\n' "$REPLICA_COUNT"
     printf 'Fault count: %s\n' "$FAULT_COUNT"
     printf 'Target DB associations: %s\n' "$TARGET_DB_ASSOCIATION_COUNT"
+    printf 'Measure keyword counts: %s\n' "$MEASURE_KEYWORD_COUNTS"
+    printf 'Measure doc IDs per keyword: %s\n' "$MEASURE_DOC_IDS_PER_KEYWORD"
     printf 'Measure association counts: %s\n' "$MEASURE_ASSOCIATION_COUNTS"
   } > "$AGGREGATE_LOG_PATH"
 }
@@ -227,13 +262,14 @@ generate_base_dataset() {
 
 prepare_run_paths() {
   local measure_associations="$1"
+  local measure_keywords="$2"
 
   if [[ "$TIMESTAMP_OUTPUTS" == "true" ]]; then
     RUN_DATE="$(date +%d_%m_%Y)"
-    RUN_NAME="$(date +%H_%M_%S)_quinta_r${REPLICA_COUNT}_f${FAULT_COUNT}_db${TARGET_DB_ASSOCIATION_COUNT}_upd${measure_associations}"
+    RUN_NAME="$(date +%H_%M_%S)_quinta_r${REPLICA_COUNT}_f${FAULT_COUNT}_db${TARGET_DB_ASSOCIATION_COUNT}_upd${measure_associations}_kw${measure_keywords}"
   else
     RUN_DATE="$(date +%d_%m_%Y)"
-    RUN_NAME="latest_quinta_r${REPLICA_COUNT}_f${FAULT_COUNT}_db${TARGET_DB_ASSOCIATION_COUNT}_upd${measure_associations}"
+    RUN_NAME="latest_quinta_r${REPLICA_COUNT}_f${FAULT_COUNT}_db${TARGET_DB_ASSOCIATION_COUNT}_upd${measure_associations}_kw${measure_keywords}"
   fi
 
   ABS_OUTPUT_PATH="$(place_path_in_run_dir "$BASE_OUTPUT_PATH" "$RUN_DATE/$RUN_NAME")"
@@ -245,15 +281,16 @@ prepare_run_paths() {
 
 generate_update_payload() {
   local measure_associations="$1"
+  local measure_keywords="$2"
 
-  echo "Generating update payload with $measure_associations associations..."
+  echo "Generating update payload with $measure_associations associations across $measure_keywords keyword(s)..."
   python3 "$ABS_UPDATE_PAYLOAD_SCRIPT" \
     --output "$ABS_PAYLOAD_PATH" \
     --warmup-count "$WARMUP_PAYLOAD_COUNT" \
     --warmup-associations "$WARMUP_ASSOCIATIONS_PER_PAYLOAD" \
     --warmup-keywords-per-payload "$WARMUP_KEYWORDS_PER_PAYLOAD" \
     --measure-associations "$measure_associations" \
-    --measure-keywords-per-payload "$MEASURE_KEYWORDS_PER_PAYLOAD" \
+    --measure-keywords-per-payload "$measure_keywords" \
     --seed "$PAYLOAD_SEED"
 
   [[ -s "$ABS_PAYLOAD_PATH" ]] || die "Generated update payload is empty: $ABS_PAYLOAD_PATH"
@@ -275,11 +312,13 @@ write_local_runtime_config() {
     printf 'runtimePopulateDbAssociationCount=%s\n' "$POPULATE_DB_ASSOCIATION_COUNT"
     printf 'runtimeWarmupAssociationCount=%s\n' "$WARMUP_TOTAL_ASSOCIATIONS"
     printf 'runtimeMeasureAssociations=%s\n' "$measure_associations"
+    printf 'runtimeMeasureKeywordCount=%s\n' "$MEASURE_KEYWORDS"
+    printf 'runtimeMeasureDocIdsPerKeyword=%s\n' "$MEASURE_DOC_IDS_PER_KEYWORD"
     while IFS= read -r line; do
       case "$line" in
         baseDatasetOutputPath=*) printf 'baseDatasetOutputPath=%s\n' "$remote_base_dataset_path" ;;
         payloadOutputPath=*) printf 'payloadOutputPath=%s\n' "$remote_payload_path" ;;
-        measureAssociationCounts=*) printf 'measureAssociationCounts=%s\n' "$measure_associations" ;;
+        measureKeywordCounts=*) printf 'measureKeywordCounts=%s\n' "$MEASURE_KEYWORDS" ;;
         inputPath=*) printf 'inputPath=%s\n' "$remote_payload_path" ;;
         outputPath=*) printf 'outputPath=%s\n' "$remote_output_path" ;;
         replicaCount=*) printf 'replicaCount=%s\n' "$REPLICA_COUNT" ;;
@@ -344,7 +383,7 @@ fetch_results() {
 }
 
 verify_results() {
-  local header line_count scenario operation run phase associations
+  local header line_count scenario operation run phase associations keyword_count doc_id_count
 
   [[ -s "$ABS_OUTPUT_PATH" ]] || die "Benchmark CSV not found or empty: $ABS_OUTPUT_PATH"
   header="$(head -n 1 "$ABS_OUTPUT_PATH" | tr -d '\r')"
@@ -358,12 +397,16 @@ verify_results() {
   run="$(awk -F',' 'NR==2 {print $3}' "$ABS_OUTPUT_PATH")"
   phase="$(awk -F',' 'NR==2 {print $4}' "$ABS_OUTPUT_PATH")"
   associations="$(awk -F',' 'NR==2 {print $5}' "$ABS_OUTPUT_PATH")"
+  keyword_count="$(awk -F',' 'NR==2 {print $6}' "$ABS_OUTPUT_PATH")"
+  doc_id_count="$(awk -F',' 'NR==2 {print $7}' "$ABS_OUTPUT_PATH")"
 
   [[ "$scenario" == "update-latency-by-associations" ]] || die "Unexpected scenario in CSV: $scenario"
   [[ "$operation" == "UPDATE" ]] || die "Unexpected operation in CSV: $operation"
   [[ "$run" == "1" ]] || die "Unexpected run in CSV: $run"
   [[ "$phase" == "measure" ]] || die "Unexpected phase in CSV: $phase"
   [[ "$associations" == "$MEASURE_ASSOCIATIONS" ]] || die "CSV associations_per_update $associations did not match $MEASURE_ASSOCIATIONS"
+  [[ "$keyword_count" == "$MEASURE_KEYWORDS" ]] || die "CSV keyword_count $keyword_count did not match $MEASURE_KEYWORDS"
+  [[ "$doc_id_count" == "$MEASURE_ASSOCIATIONS" ]] || die "CSV doc_id_count $doc_id_count did not match $MEASURE_ASSOCIATIONS"
 }
 
 stop_current_run() {
@@ -386,11 +429,12 @@ cleanup() {
 
 run_one_measurement() {
   MEASURE_ASSOCIATIONS="$1"
+  MEASURE_KEYWORDS="$2"
 
   echo
-  echo "===== Running update latency benchmark with $MEASURE_ASSOCIATIONS associations/update ====="
-  prepare_run_paths "$MEASURE_ASSOCIATIONS"
-  generate_update_payload "$MEASURE_ASSOCIATIONS"
+  echo "===== Running update latency benchmark with $MEASURE_ASSOCIATIONS associations/update across $MEASURE_KEYWORDS keyword(s) ====="
+  prepare_run_paths "$MEASURE_ASSOCIATIONS" "$MEASURE_KEYWORDS"
+  generate_update_payload "$MEASURE_ASSOCIATIONS" "$MEASURE_KEYWORDS"
 
   CURRENT_RUN_ACTIVE=1
   deploy_arg clean
@@ -439,8 +483,8 @@ main() {
   prepare_aggregate_paths
   start_group_log_capture
   generate_base_dataset
-  for MEASURE_ASSOCIATIONS in "${MEASURE_ASSOCIATION_VALUES[@]}"; do
-    run_one_measurement "$MEASURE_ASSOCIATIONS"
+  for (( measure_index = 0; measure_index < ${#MEASURE_ASSOCIATION_VALUES[@]}; measure_index++ )); do
+    run_one_measurement "${MEASURE_ASSOCIATION_VALUES[$measure_index]}" "${MEASURE_KEYWORD_VALUES[$measure_index]}"
   done
   aggregate_results
   verify_aggregate_results
