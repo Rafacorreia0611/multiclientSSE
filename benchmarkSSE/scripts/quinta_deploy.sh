@@ -47,12 +47,9 @@ ssh_remote() {
     "$@"
 }
 
-scp_remote() {
-  scp -q \
-    -o BatchMode=yes \
-    -o ConnectTimeout="${QUINTA_SSH_CONNECT_TIMEOUT_SECONDS:-10}" \
-    -o ServerAliveInterval="${QUINTA_SSH_SERVER_ALIVE_INTERVAL_SECONDS:-5}" \
-    -o ServerAliveCountMax="${QUINTA_SSH_SERVER_ALIVE_COUNT_MAX:-2}" \
+rsync_remote() {
+  rsync -az --delete \
+    -e "ssh -o BatchMode=yes -o ConnectTimeout=${QUINTA_SSH_CONNECT_TIMEOUT_SECONDS:-10} -o ServerAliveInterval=${QUINTA_SSH_SERVER_ALIVE_INTERVAL_SECONDS:-5} -o ServerAliveCountMax=${QUINTA_SSH_SERVER_ALIVE_COUNT_MAX:-2}" \
     "$@"
 }
 
@@ -281,6 +278,7 @@ configure_local_deploy() {
   for (( deploy_index = 0; deploy_index < REPLICA_COUNT; deploy_index++ )); do
     deploy_dir="$ROOT_DIR/build/local/rep${deploy_index}"
     [[ -d "$deploy_dir" ]] || die "Missing local deploy directory: $deploy_dir"
+    repair_local_deploy_from_reference "$deploy_dir"
     write_system_config "$deploy_dir/config/system.config"
     write_hosts_config "$deploy_dir/config/hosts.config"
   done
@@ -288,72 +286,208 @@ configure_local_deploy() {
   for (( deploy_index = 0; deploy_index < CLIENT_COUNT; deploy_index++ )); do
     deploy_dir="$ROOT_DIR/build/local/cli${deploy_index}"
     [[ -d "$deploy_dir" ]] || die "Missing local deploy directory: $deploy_dir"
+    repair_local_deploy_from_reference "$deploy_dir"
     write_system_config "$deploy_dir/config/system.config"
     write_hosts_config "$deploy_dir/config/hosts.config"
   done
 }
 
-expected_lib_count() {
-  find "$ROOT_DIR/build/install/cobra/lib" -maxdepth 1 -type f | wc -l | tr -d ' '
+reference_deploy_dir() {
+  printf '%s\n' "$ROOT_DIR/build/install/cobra"
 }
 
-repair_config_dirs_if_needed() {
-  local deploy_dir="$1"
-  local config_dir
+expected_source_jar_count() {
+  local source_jars project_jars
 
-  mkdir -p "$deploy_dir/config"
-  for config_dir in keysECDSA keysRSA keysSSL_TLS keysSunEC workloads; do
-    if [[ ! -d "$deploy_dir/config/$config_dir" ]]; then
-      rm -rf "$deploy_dir/config/$config_dir"
-      cp -R "$ROOT_DIR/config/$config_dir" "$deploy_dir/config/"
-    fi
+  source_jars="$(find "$ROOT_DIR/lib" -maxdepth 1 -type f -name '*.jar' | wc -l | tr -d ' ')"
+  project_jars="$(find "$ROOT_DIR/build/libs" -maxdepth 1 -type f -name '*.jar' | wc -l | tr -d ' ')"
+  printf '%s\n' $((source_jars + project_jars))
+}
+
+validate_source_inputs() {
+  local required_path
+
+  for required_path in \
+    config \
+    pairing \
+    scripts \
+    lib \
+    pairing_based_execution.sh \
+    config/system.config \
+    config/hosts.config \
+    config/keysSSL_TLS/EC_KeyPair_256.pkcs12 \
+    config/keysECDSA/publickey1001 \
+    config/keysRSA/publickey1001 \
+    config/keysSunEC/publickey1001 \
+    pairing/relic/relic.zip \
+    scripts/smartrun.sh; do
+    [[ -e "$ROOT_DIR/$required_path" ]] || die "Missing source deploy path: $ROOT_DIR/$required_path"
   done
 
-  if [[ ! -f "$deploy_dir/config/keysSSL_TLS/EC_KeyPair_256.pkcs12" ]]; then
-    mkdir -p "$deploy_dir/config"
-    rm -rf "$deploy_dir/config/keysSSL_TLS"
-    cp -R "$ROOT_DIR/config/keysSSL_TLS" "$deploy_dir/config/"
-  fi
+  [[ "$(find "$ROOT_DIR/lib" -maxdepth 1 -type f -name '*.jar' | wc -l | tr -d ' ')" -gt 0 ]] \
+    || die "No source jars found in $ROOT_DIR/lib"
+  [[ "$(find "$ROOT_DIR/build/libs" -maxdepth 1 -type f -name '*.jar' | wc -l | tr -d ' ')" -gt 0 ]] \
+    || die "No project jar found in $ROOT_DIR/build/libs"
+}
+
+deploy_file_count() {
+  local deploy_dir="$1"
+  find "$deploy_dir" -type f | wc -l | tr -d ' '
+}
+
+deploy_jar_count() {
+  local deploy_dir="$1"
+  find "$deploy_dir/lib" -maxdepth 1 -type f -name '*.jar' | wc -l | tr -d ' '
+}
+
+repair_local_deploy_from_reference() {
+  local deploy_dir="$1"
+  local reference_dir
+
+  reference_dir="$(reference_deploy_dir)"
+  [[ -d "$reference_dir" ]] || die "Missing reference deploy directory: $reference_dir"
+  [[ -d "$ROOT_DIR/config" ]] || die "Missing config source directory: $ROOT_DIR/config"
+
+  mkdir -p "$deploy_dir"
+  cp -R "$reference_dir/." "$deploy_dir/"
+  rm -rf "$deploy_dir/config"
+  mkdir -p "$deploy_dir/config"
+  cp -R "$ROOT_DIR/config/." "$deploy_dir/config/"
 }
 
 validate_one_local_deploy() {
   local deploy_dir="$1"
-  local expected_count="$2"
-  local actual_count
+  local expected_source_jars="$2"
+  local actual_jars required_path source_path relative_path target_path
 
   [[ -d "$deploy_dir" ]] || die "Missing local deploy directory: $deploy_dir"
-  repair_config_dirs_if_needed "$deploy_dir"
 
-  actual_count="$(find "$deploy_dir/lib" -maxdepth 1 -type f | wc -l | tr -d ' ')"
-  [[ "$actual_count" -eq "$expected_count" ]] || die "$deploy_dir/lib has $actual_count jars; expected $expected_count"
-  [[ -f "$deploy_dir/config/keysSSL_TLS/EC_KeyPair_256.pkcs12" ]] || die "Missing TLS key in $deploy_dir"
-  [[ -f "$deploy_dir/config/keysECDSA/publickey1001" ]] || die "Missing ECDSA keys in $deploy_dir"
-  [[ -f "$deploy_dir/config/keysRSA/publickey1001" ]] || die "Missing RSA keys in $deploy_dir"
-  [[ -f "$deploy_dir/config/keysSunEC/publickey1001" ]] || die "Missing SunEC keys in $deploy_dir"
-  [[ -f "$deploy_dir/smartrun.sh" ]] || die "Missing smartrun.sh in $deploy_dir"
+  for required_path in \
+    config \
+    lib \
+    pairing \
+    smartrun.sh \
+    config/system.config \
+    config/hosts.config \
+    config/keysSSL_TLS/EC_KeyPair_256.pkcs12 \
+    config/keysECDSA/publickey1001 \
+    config/keysRSA/publickey1001 \
+    config/keysSunEC/publickey1001; do
+    [[ -e "$deploy_dir/$required_path" ]] || die "Missing local deploy path: $deploy_dir/$required_path"
+  done
+
+  while IFS= read -r source_path; do
+    relative_path="${source_path#"$ROOT_DIR/config/"}"
+    [[ -e "$deploy_dir/config/$relative_path" ]] \
+      || die "Missing local deploy copy of source config: $deploy_dir/config/$relative_path"
+  done < <(find "$ROOT_DIR/config" -type f)
+
+  while IFS= read -r source_path; do
+    relative_path="${source_path#"$ROOT_DIR/pairing/"}"
+    [[ -e "$deploy_dir/pairing/$relative_path" ]] \
+      || die "Missing local deploy copy of source pairing: $deploy_dir/pairing/$relative_path"
+  done < <(find "$ROOT_DIR/pairing" -type f)
+
+  while IFS= read -r source_path; do
+    target_path="$deploy_dir/$(basename "$source_path")"
+    [[ -e "$target_path" ]] \
+      || die "Missing local deploy copy of source script: $target_path"
+  done < <(find "$ROOT_DIR/scripts" -type f)
+
+  [[ -e "$deploy_dir/pairing_based_execution.sh" ]] \
+    || die "Missing local deploy copy of source file: $deploy_dir/pairing_based_execution.sh"
+
+  while IFS= read -r source_path; do
+    target_path="$deploy_dir/lib/$(basename "$source_path")"
+    [[ -e "$target_path" ]] \
+      || die "Missing local deploy copy of source jar: $target_path"
+  done < <(find "$ROOT_DIR/lib" -maxdepth 1 -type f -name '*.jar')
+
+  while IFS= read -r source_path; do
+    target_path="$deploy_dir/lib/$(basename "$source_path")"
+    [[ -e "$target_path" ]] \
+      || die "Missing local deploy copy of project jar: $target_path"
+  done < <(find "$ROOT_DIR/build/libs" -maxdepth 1 -type f -name '*.jar')
+
+  actual_jars="$(deploy_jar_count "$deploy_dir")"
+  [[ "$actual_jars" -ge "$expected_source_jars" ]] \
+    || die "$deploy_dir/lib has $actual_jars jars; expected at least $expected_source_jars source/project jars"
+}
+
+remote_file_count() {
+  local host="$1"
+  local remote_target="$2"
+  ssh_remote "$host" "find '$remote_target' -type f | wc -l | tr -d ' '"
+}
+
+remote_jar_count() {
+  local host="$1"
+  local remote_target="$2"
+  ssh_remote "$host" "find '$remote_target/lib' -maxdepth 1 -type f -name '*.jar' | wc -l | tr -d ' '"
+}
+
+validate_remote_deploy() {
+  local local_dir="$1"
+  local host="$2"
+  local remote_target="$3"
+  local expected_files expected_jars actual_files actual_jars required_path
+
+  expected_files="$(deploy_file_count "$local_dir")"
+  expected_jars="$(deploy_jar_count "$local_dir")"
+
+  for required_path in \
+    "$remote_target" \
+    "$remote_target/config" \
+    "$remote_target/lib" \
+    "$remote_target/pairing" \
+    "$remote_target/smartrun.sh" \
+    "$remote_target/config/system.config" \
+    "$remote_target/config/hosts.config" \
+    "$remote_target/config/keysSSL_TLS/EC_KeyPair_256.pkcs12" \
+    "$remote_target/config/keysECDSA/publickey1001" \
+    "$remote_target/config/keysRSA/publickey1001" \
+    "$remote_target/config/keysSunEC/publickey1001"; do
+    ssh_remote "$host" "test -e '$required_path'" \
+      || { echo "Remote deploy missing required path: $host:$required_path" >&2; return 1; }
+  done
+
+  actual_files="$(remote_file_count "$host" "$remote_target")"
+  [[ "$actual_files" -eq "$expected_files" ]] \
+    || { echo "$host:$remote_target has $actual_files files; expected $expected_files" >&2; return 1; }
+
+  actual_jars="$(remote_jar_count "$host" "$remote_target")"
+  [[ "$actual_jars" -eq "$expected_jars" ]] \
+    || { echo "$host:$remote_target/lib has $actual_jars jars; expected $expected_jars" >&2; return 1; }
 }
 
 copy_local_deploy_dir() {
   local local_dir="$1"
   local host="$2"
   local remote_dir="$3"
+  local deploy_name remote_target
 
-  if ! scp_remote -r "$local_dir" "$host:$remote_dir/"; then
-    echo "  retrying with legacy scp protocol..."
-    scp_remote -O -r "$local_dir" "$host:$remote_dir/"
+  deploy_name="$(basename "$local_dir")"
+  remote_target="$remote_dir/$deploy_name"
+
+  rsync_remote "$local_dir/" "$host:$remote_target/"
+  if ! validate_remote_deploy "$local_dir" "$host" "$remote_target"; then
+    echo "  remote deploy incomplete after rsync; retrying $deploy_name on $host..."
+    rsync_remote "$local_dir/" "$host:$remote_target/"
+    validate_remote_deploy "$local_dir" "$host" "$remote_target" \
+      || die "Remote deploy is incomplete after retry: $host:$remote_target"
   fi
 }
 
 validate_local_deploy() {
-  local expected_count deploy_index
-  expected_count="$(expected_lib_count)"
-  [[ "$expected_count" -gt 0 ]] || die "No jars found in build/install/cobra/lib"
+  local expected_source_jars deploy_index
+  validate_source_inputs
+  expected_source_jars="$(expected_source_jar_count)"
 
   for (( deploy_index = 0; deploy_index < REPLICA_COUNT; deploy_index++ )); do
-    validate_one_local_deploy "$ROOT_DIR/build/local/rep${deploy_index}" "$expected_count"
+    validate_one_local_deploy "$ROOT_DIR/build/local/rep${deploy_index}" "$expected_source_jars"
   done
   for (( deploy_index = 0; deploy_index < CLIENT_COUNT; deploy_index++ )); do
-    validate_one_local_deploy "$ROOT_DIR/build/local/cli${deploy_index}" "$expected_count"
+    validate_one_local_deploy "$ROOT_DIR/build/local/cli${deploy_index}" "$expected_source_jars"
   done
 }
 
@@ -363,7 +497,7 @@ deploy() {
   echo "Preparing local deploy..."
   (
     cd "$ROOT_DIR"
-    ./gradlew clean localDeploy -Pservers="$REPLICA_COUNT" -Pclients="$CLIENT_COUNT"
+    ./gradlew --no-daemon --no-watch-fs clean localDeploy -Pservers="$REPLICA_COUNT" -Pclients="$CLIENT_COUNT"
   )
   configure_local_deploy
   validate_local_deploy
