@@ -24,6 +24,7 @@ Commands:
   status      Show remote process status and log tails.
   stop        Stop remote replicas for the run.
   clean       Remove the remote run directory.
+  preclean    Stop stale Quinta benchmark processes, free run ports, and remove the remote run directory.
 
 Options:
   --cluster-config PATH  Default: benchmarkSSE/config/quinta.env
@@ -615,13 +616,80 @@ status() {
   done
 }
 
+ports_for_node() {
+  local node="$1"
+  local replica_id ports=""
+
+  for (( replica_id = 0; replica_id < REPLICA_COUNT; replica_id++ )); do
+    if [[ "$(replica_node "$replica_id")" == "$node" ]]; then
+      ports+=" $(replica_client_port "$replica_id") $(replica_server_port "$replica_id")"
+    fi
+  done
+
+  printf '%s\n' "$ports"
+}
+
+kill_current_run_listener_on_port() {
+  local host="$1"
+  local port="$2"
+  local signal="$3"
+
+  ssh_remote "$host" "pid=\$(ss -ltnp 'sport = :$port' 2>/dev/null | sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p' | head -n 1); if [[ -n \"\$pid\" ]] && ps -p \"\$pid\" -o args= | grep -F -q '$(remote_run_dir)'; then echo \"Killing current-run listener on port $port: pid=\$pid signal=$signal\"; kill -$signal \"\$pid\" 2>/dev/null || true; fi"
+}
+
+kill_any_listener_on_port() {
+  local host="$1"
+  local port="$2"
+  local signal="$3"
+
+  ssh_remote "$host" "pid=\$(ss -ltnp 'sport = :$port' 2>/dev/null | sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p' | head -n 1); if [[ -n \"\$pid\" ]]; then echo \"Killing listener on port $port: pid=\$pid signal=$signal\"; kill -$signal \"\$pid\" 2>/dev/null || true; fi"
+}
+
 stop() {
-  local node host
+  local node host ports port
 
   for node in "${QUINTA_NODES[@]}"; do
     host="$(ssh_host "$node")"
     echo "Stopping on $host"
-    ssh_remote "$host" "pkill -f '$(remote_run_dir).*[s]se.demo.server.Server' || true; pkill -f '$(remote_run_dir).*/[s]martrun.sh' || true"
+    ssh_remote "$host" "pkill -TERM -f '$(remote_run_dir).*[s]se.demo.server.Server' || true; pkill -TERM -f '$(remote_run_dir).*/[s]martrun.sh' || true"
+  done
+
+  sleep 2
+
+  for node in "${QUINTA_NODES[@]}"; do
+    host="$(ssh_host "$node")"
+    ports="$(ports_for_node "$node")"
+    ssh_remote "$host" "pkill -KILL -f '$(remote_run_dir).*[s]se.demo.server.Server' || true; pkill -KILL -f '$(remote_run_dir).*/[s]martrun.sh' || true"
+    for port in $ports; do
+      kill_current_run_listener_on_port "$host" "$port" KILL
+    done
+  done
+}
+
+preclean() {
+  local node host ports port
+
+  for node in "${QUINTA_NODES[@]}"; do
+    host="$(ssh_host "$node")"
+    echo "Preclean stopping stale processes on $host"
+    ssh_remote "$host" "pkill -TERM -f '${QUINTA_REMOTE_ROOT}/.*[s]se.demo.server.Server' || true; pkill -TERM -f '${QUINTA_REMOTE_ROOT}/.*/[s]martrun.sh' || true; pkill -TERM -f '${QUINTA_REMOTE_ROOT}/.*[s]se.benchmark.BenchmarkClient' || true; pkill -TERM -f '${QUINTA_REMOTE_ROOT}/.*[s]se.populatedb.PopulateDB' || true"
+  done
+
+  sleep 2
+
+  for node in "${QUINTA_NODES[@]}"; do
+    host="$(ssh_host "$node")"
+    ports="$(ports_for_node "$node")"
+    ssh_remote "$host" "pkill -KILL -f '${QUINTA_REMOTE_ROOT}/.*[s]se.demo.server.Server' || true; pkill -KILL -f '${QUINTA_REMOTE_ROOT}/.*/[s]martrun.sh' || true; pkill -KILL -f '${QUINTA_REMOTE_ROOT}/.*[s]se.benchmark.BenchmarkClient' || true; pkill -KILL -f '${QUINTA_REMOTE_ROOT}/.*[s]se.populatedb.PopulateDB' || true"
+    for port in $ports; do
+      kill_any_listener_on_port "$host" "$port" KILL
+    done
+  done
+
+  for node in "${QUINTA_NODES[@]}"; do
+    host="$(ssh_host "$node")"
+    echo "Cleaning on $host"
+    ssh_remote "$host" "rm -rf '$(remote_run_dir)'"
   done
 }
 
@@ -649,6 +717,7 @@ main() {
     status) status ;;
     stop) stop ;;
     clean) clean ;;
+    preclean) preclean ;;
     *)
       usage
       exit 1

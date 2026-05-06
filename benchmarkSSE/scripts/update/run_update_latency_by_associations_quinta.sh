@@ -15,6 +15,8 @@ REPLICA_COUNT_SOURCE="config"
 CLEANUP_DONE=0
 CURRENT_RUN_ACTIVE=0
 LOG_CAPTURE_STARTED=0
+NODE_HEALTH_MONITOR_PID=""
+REPLICA_LOGS_FETCHED=0
 
 # shellcheck source=../common/quinta_benchmark_common.sh
 source "$COMMON_SCRIPT"
@@ -369,17 +371,62 @@ run_benchmark_remote() {
     > "$ABS_LOG_DIR/benchmark.log" 2>&1
 }
 
-fetch_results() {
-  local benchmark_host node replica_id node_index remote_log
-  benchmark_host="$(client_node "$BENCHMARK_CLIENT_INDEX")"
-  scp_remote "$benchmark_host:$REMOTE_OUTPUT_PATH" "$ABS_OUTPUT_PATH"
+start_node_health_monitor() {
+  local interval_seconds="${QUINTA_HEALTH_MONITOR_INTERVAL_SECONDS:-30}"
+  local health_dir="$ABS_LOG_DIR/node_health"
 
+  [[ -z "$NODE_HEALTH_MONITOR_PID" ]] || return
+  mkdir -p "$health_dir"
+  echo "Starting Quinta node health monitor (${interval_seconds}s) -> $health_dir"
+
+  (
+    set +e
+    while true; do
+      for node_index in "${!QUINTA_NODES[@]}"; do
+        node="${QUINTA_NODES[$node_index]}"
+        host="${QUINTA_SSH_PREFIX}${node}"
+        {
+          printf '\n===== %s run=%s =====\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$RUN_NAME"
+          printf -- '--- %s (%s) ---\n' "$host" "${QUINTA_NODE_IPS[$node_index]}"
+          ssh_remote "$host" "date -u '+remote_time=%Y-%m-%dT%H:%M:%SZ'; uptime; free -m | awk 'NR <= 3'; ps -eo pid,ppid,pcpu,pmem,rss,etime,args --sort=-pcpu | grep -E 'sse\\.demo\\.server\\.Server|sse\\.benchmark\\.BenchmarkClient|sse\\.populatedb\\.PopulateDB|[s]martrun\\.sh' | head -20 || true" 2>&1
+          printf 'ssh_exit=%s\n' "$?"
+        } >> "$health_dir/$host.log"
+      done
+
+      sleep "$interval_seconds"
+    done
+  ) &
+  NODE_HEALTH_MONITOR_PID="$!"
+}
+
+stop_node_health_monitor() {
+  if [[ -n "$NODE_HEALTH_MONITOR_PID" ]]; then
+    kill "$NODE_HEALTH_MONITOR_PID" 2>/dev/null || true
+    wait "$NODE_HEALTH_MONITOR_PID" 2>/dev/null || true
+    NODE_HEALTH_MONITOR_PID=""
+  fi
+}
+
+fetch_replica_logs() {
+  local node replica_id node_index remote_log
+
+  [[ -n "${ABS_LOG_DIR:-}" && -n "${RUN_NAME:-}" ]] || return 0
+  [[ "$REPLICA_LOGS_FETCHED" -eq 0 ]] || return 0
+  echo "Fetching replica logs..."
   for (( replica_id = 0; replica_id < REPLICA_COUNT; replica_id++ )); do
     node_index=$((replica_id % ${#QUINTA_NODES[@]}))
     node="${QUINTA_NODES[$node_index]}"
     remote_log="$(remote_run_dir)/rep${replica_id}/server.log"
     scp_remote "${QUINTA_SSH_PREFIX}${node}:$remote_log" "$ABS_LOG_DIR/rep${replica_id}.log" || true
   done
+  REPLICA_LOGS_FETCHED=1
+}
+
+fetch_results() {
+  local benchmark_host
+  benchmark_host="$(client_node "$BENCHMARK_CLIENT_INDEX")"
+  scp_remote "$benchmark_host:$REMOTE_OUTPUT_PATH" "$ABS_OUTPUT_PATH"
+  fetch_replica_logs
 }
 
 verify_results() {
@@ -410,8 +457,9 @@ verify_results() {
 }
 
 stop_current_run() {
+  stop_node_health_monitor
   if [[ "$CURRENT_RUN_ACTIVE" -eq 1 && "${RUN_NAME:-}" != "" ]]; then
-    deploy_arg stop || true
+    fetch_replica_logs || true
     deploy_arg clean || true
     CURRENT_RUN_ACTIVE=0
   fi
@@ -430,6 +478,7 @@ cleanup() {
 run_one_measurement() {
   MEASURE_ASSOCIATIONS="$1"
   MEASURE_KEYWORDS="$2"
+  REPLICA_LOGS_FETCHED=0
 
   echo
   echo "===== Running update latency benchmark with $MEASURE_ASSOCIATIONS associations/update across $MEASURE_KEYWORDS keyword(s) ====="
@@ -437,17 +486,19 @@ run_one_measurement() {
   generate_update_payload "$MEASURE_ASSOCIATIONS" "$MEASURE_KEYWORDS"
 
   CURRENT_RUN_ACTIVE=1
-  deploy_arg clean
+  deploy_arg preclean
   deploy_arg preflight
   deploy_arg deploy
   deploy_arg start
   deploy_arg wait
+  start_node_health_monitor
   copy_benchmark_inputs
   run_populate_remote
   run_benchmark_remote
   fetch_results
   verify_results
   UPDATE_CSV_PATHS+=("$ABS_OUTPUT_PATH")
+  stop_node_health_monitor
   stop_current_run
 
   echo "Benchmark CSV: $ABS_OUTPUT_PATH"
