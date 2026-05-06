@@ -29,7 +29,7 @@ For the original project and its full documentation, see the [COBRA repository](
 
 ## Requirements
 
-This project is primarily implemented in Java and uses Gradle to compile, package, and deploy local test environments. The confidential layer also depends on native C code used by the pairing/commitment components exposed to Java through JNI.
+This project is primarily implemented in Java and uses Gradle to compile, package, and deploy local environments. The confidential layer also depends on native C code used by the pairing/commitment components exposed to Java through JNI.
 
 The original COBRA project was tested with Java 11.0.13. This fork follows the same general build model.
 
@@ -57,86 +57,9 @@ The project uses native C code for the constant commitment scheme through the [`
 1. Inside `pairing`, run `./build_relic.sh`
 2. Then run `./build.sh <path to java folder>`
 
-## Enron Dataset
-
-For SSE population tests, this repository expects the Enron dataset under `datasets/raw/enron/`.
-
-### Manual download
-
-If you want the simplest setup, download the dataset manually:
-
-1. Open the dataset page: [The Enron Email Dataset on Kaggle](https://www.kaggle.com/datasets/wcukierski/enron-email-dataset?resource=download)
-2. Download the dataset zip from the browser
-3. Extract its contents into `datasets/raw/enron/`
-4. Confirm that `datasets/raw/enron/emails.csv` exists after extraction
-
-### Automatic download with Kaggle CLI
-
-The repository also includes helper scripts under [`datasets/scripts`](/Users/rafacorreia0611/Documents/Tese/multiclientSSE/datasets/scripts):
-
-- macOS/Linux: `./datasets/scripts/download_enron_dataset.sh`
-- Windows: `datasets\scripts\download_enron_dataset.cmd`
-
-Both scripts download the Kaggle dataset `wcukierski/enron-email-dataset` into the fixed project directory `datasets/raw/enron/`, extract it there, and remove the downloaded zip file.
-
-Before using the Kaggle CLI:
-
-1. Install the CLI
-2. Sign in to Kaggle
-3. Open `https://www.kaggle.com/settings`
-4. In the `API` section, click `Generate New Token`
-5. Save the token to `~/.kaggle/access_token` on macOS/Linux or `%USERPROFILE%\.kaggle\access_token` on Windows
-
-Recommended installation options:
-
-- macOS/Linux: `python3 -m pip install --user kaggle`
-- macOS/Linux alternative: `pipx install kaggle`
-- Windows: `py -m pip install kaggle`
-- Windows alternative: `pipx install kaggle`
-
-On macOS/Linux, restrict the token file permissions with:
-
-```bash
-chmod 600 ~/.kaggle/access_token
-```
-
-The Kaggle CLI also supports:
-
-- `KAGGLE_API_TOKEN` as an environment variable
-- the legacy credentials file `~/.kaggle/kaggle.json`
-
-### Preprocess the dataset
-
-After `datasets/raw/enron/emails.csv` is available, generate the intermediate keyword-to-document mapping with:
-
-```bash
-./gradlew processEnronDataset
-```
-
-This task:
-
-- reads `datasets/raw/enron/emails.csv`
-- uses the Enron `file` column as the document identifier
-- extracts keywords from `subject + body`
-- writes the processed output to `datasets/processed/enron/keyword_to_docids.ndjson`
-
-The preprocessing task supports the following properties:
-
-- `-Pinput`: input CSV path
-- `-Poutput`: output NDJSON path
-- `-Pmode`: `compact`, `full`, or `benchmark`
-- `-PtopK`: number of keywords kept in `compact` mode
-- `-PmaxDocFreqRatio`: upper bound on keyword document frequency in `compact` mode
-- `-PbucketSpec`: benchmark bucket ranges in `min:max,min:max,...` format
-- `-PsamplesPerBucket`: number of keywords selected per benchmark bucket
-
-By default, the task runs in `compact` mode with `topK=500` and `maxDocFreqRatio=0.02`.
-
-The `benchmark` mode creates a smaller real-data NDJSON subset by selecting keywords from document-frequency buckets.
-
 ## Running the SSE Demo
 
-After preparing the local deployment with `./gradlew localDeploy`, start the replicas, optionally populate the SSE database, and then launch a client.
+After preparing the local deployment with `./gradlew localDeploy`, start the replicas and then launch a client.
 
 ### 1. Start the replicas
 
@@ -162,47 +85,24 @@ cd build/local/rep3
 ./smartrun.sh sse.demo.server.Server 3
 ```
 
-### 2. Optionally populate the SSE database
+### 2. Start the client
 
-If you want to preload the SSE state from an Enron NDJSON file, start a second client folder and run `PopulateDB`:
+Once all replicas are ready, start the interactive client:
 
 ```bash
 cd build/local/cli0
-./smartrun.sh sse.populatedb.PopulateDB \
-  --client-id 101 \
-  --input datasets/processed/enron/keyword_to_docids.ndjson \
-  --batch-size 250
-```
-
-The `PopulateDB` command accepts:
-
-- `--client-id N`
-- `--input PATH`
-- `--batch-size N`
-
-For local tests, it is often useful to prepare two client folders with `./gradlew localDeploy -Pclients=2`, use one for `PopulateDB`, and a different one for the interactive client.
-
-
-### 3. Start the client
-
-Once all replicas are ready, and after population if you are using it, start the interactive client:
-
-```bash
-cd build/local/cli1
 ./smartrun.sh sse.demo.client.Client 100
 ```
 
-If you prepared only one client folder, you can still use `cli0` for the interactive client.
-
 On Windows, use `run.cmd` instead of `./smartrun.sh`.
 
-### 4. Use the interactive menu
+### 3. Use the interactive menu
 
 The client initializes the SSE state when it starts and then exposes a simple interactive menu with:
 
 - `Search`: retrieves the current result set for a keyword
-- `Add`: inserts a document identifier for a keyword
-- `Delete`: invalidates a previously added document identifier for a keyword
+- `Add`: inserts one or more keyword-to-document identifier associations
+- `Delete`: invalidates one or more previously added keyword-to-document identifier associations
 - `Exit`: closes the interactive client
 
 ## Assumptions and Limitations
