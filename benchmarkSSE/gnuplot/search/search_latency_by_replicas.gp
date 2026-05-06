@@ -18,27 +18,35 @@ if (!exists("plot_font")) {
     plot_font = "Helvetica"
 }
 
+if (!exists("plot_font_size")) {
+    plot_font_size = 18
+}
+
 bucket_count = words(bucket_specs)
+plot_font_spec = sprintf("%s,%d", plot_font, plot_font_size)
+plot_label_font_spec = sprintf("%s,%d", plot_font, plot_font_size + 2)
 
 set datafile separator "\t"
-set terminal pngcairo size 980,560 enhanced font sprintf("%s,12", plot_font)
+set terminal pngcairo size 980,560 enhanced font plot_font_spec
 
 set border lw 1.2
-set tics out nomirror
+set tics out nomirror font plot_font_spec
 set style line 81 lc rgb "#cfcfcf" lt 1 lw 1.1
 set grid back xtics ytics ls 81
-set key left top opaque box width 1 samplen 2.2 spacing 1.1
-set xlabel "Replicas"
-set ylabel "Time (ms)"
+set key left top opaque box width -0.4 samplen 1.7 spacing 1.1 font plot_font_spec
+set xlabel "Replicas" font plot_label_font_spec
+set ylabel "Time (ms)" font plot_label_font_spec
+set lmargin 12
+set bmargin 4.8
 set xtics ("4" 4, "7" 7, "10" 10, "13" 13) nomirror
 set ytics nomirror
 set xrange [4:13]
 set logscale y 10
-set yrange [5:*]
+set yrange [5:100000]
 unset mytics
 unset ytics
 set ytics nomirror
-set for [v in "5 10 20 50 100 200 500 1000 2000 5000 10000"] ytics add (sprintf("%g", real(v)) real(v))
+set for [v in "10 30 100 300 1000 3000 10000 30000 100000"] ytics add (sprintf("%g", real(v)) real(v))
 
 set style line 1 lc rgb "#d95f02" lt 1 lw 1.45 pt 7 ps 1.45
 set style line 2 lc rgb "#1b9e77" lt 1 lw 1.45 pt 5 ps 1.45

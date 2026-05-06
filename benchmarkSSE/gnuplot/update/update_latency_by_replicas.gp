@@ -14,18 +14,26 @@ if (!exists("plot_font")) {
     plot_font = "Helvetica"
 }
 
+if (!exists("plot_font_size")) {
+    plot_font_size = 18
+}
+
 replica_count = words(replica_values)
+plot_font_spec = sprintf("%s,%d", plot_font, plot_font_size)
+plot_label_font_spec = sprintf("%s,%d", plot_font, plot_font_size + 2)
 
 set datafile separator "\t"
-set terminal pngcairo size 980,560 enhanced font sprintf("%s,12", plot_font)
+set terminal pngcairo size 980,560 enhanced font plot_font_spec
 
 set border lw 1.2
-set tics out nomirror
+set tics out nomirror font plot_font_spec
 set style line 81 lc rgb "#cfcfcf" lt 1 lw 1.1
 set grid back xtics ytics ls 81
-set key left top opaque box width 1 samplen 2.2 spacing 1.1
-set xlabel "Associations per update"
-set ylabel "Update latency (ms)"
+set key left top opaque box width 1 samplen 2.2 spacing 1.1 font plot_font_spec
+set xlabel "Associations per update" font plot_label_font_spec
+set ylabel "Time (ms)" font plot_label_font_spec
+set lmargin 12
+set bmargin 4.8
 set logscale x 10
 set logscale y 10
 set xrange [0.8:*]
