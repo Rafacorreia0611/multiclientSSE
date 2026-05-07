@@ -28,3 +28,6 @@ bin
 
 # Ignore local benchmark config variants.
 benchmarkSSE/config/update/*_night.properties
+
+# Ignore macOS Finder metadata
+.DS_Store
