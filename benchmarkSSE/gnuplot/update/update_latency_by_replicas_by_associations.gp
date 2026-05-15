@@ -38,15 +38,16 @@ set xlabel "Replicas" font plot_label_font_spec
 set ylabel "Time (s)" font plot_label_font_spec
 set lmargin 10
 set bmargin 4.8
-set xtics ("4" 4, "7" 7, "10" 10, "13" 13) nomirror
+set xtics ("4" 4, "7" 7, "10" 10) nomirror
 set ytics nomirror
-set xrange [4:13]
+set xrange [4:10]
 set logscale y 10
 set yrange [5:800]
 unset mytics
 unset ytics
 set ytics nomirror
 set for [v in "5 10 30 50 100 200 400 800"] ytics add (sprintf("%g", real(v)) real(v))
+set label 1 "Y-axis in logarithmic scale" at graph 0.98, 0.94 right front font sprintf("%s,%d", plot_font, plot_font_size - 3) tc rgb "#555555"
 
 set style line 1 lc rgb "#d95f02" lt 1 lw 1.45 pt 7 ps 1.55
 set style line 2 lc rgb "#1b9e77" lt 1 lw 1.45 pt 5 ps 1.55
@@ -59,6 +60,6 @@ set style line 8 lc rgb "#666666" lt 1 lw 1.4 pt 8 ps 1.35
 
 set output sprintf("%s/update_latency_by_replicas.png", output_dir)
 unset title
-plot for [i=1:association_count] sprintf("< awk -F'\\t' 'NR > 1 && $4 == \"%s\" { print $1 \"\\t\" $9 / 1000 }' %s | sort -n", word(association_values, i), input_path) using 1:2 with linespoints ls i title sprintf("%s Update Size", word(association_labels, i))
+plot for [i=1:association_count] sprintf("< awk -F'\\t' 'NR > 1 && ($1 == 4 || $1 == 7 || $1 == 10) && $4 == \"%s\" { print $1 \"\\t\" $9 / 1000 }' %s | sort -n", word(association_values, i), input_path) using 1:2 with linespoints ls i title sprintf("%s Update Size", word(association_labels, i))
 
 unset output
