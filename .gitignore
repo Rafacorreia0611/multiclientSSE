@@ -29,5 +29,8 @@ bin
 # Ignore local benchmark config variants.
 benchmarkSSE/config/update/*_night.properties
 
+# Ignore local Quinta hosts snippet.
+multiclientSSE-hosts-nodes
+
 # Ignore macOS Finder metadata
 .DS_Store
