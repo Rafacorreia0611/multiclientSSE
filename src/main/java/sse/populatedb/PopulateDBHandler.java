@@ -12,11 +12,10 @@ import sse.dataset.KeywordDocIdsEntry;
 import sse.dataset.KeywordDocIdsReader;
 import sse.demo.client.ConfidentialClientAdapter;
 import sse.domain.InitializationMaterial;
-import sse.domain.PendingKeywordUpdates;
-import sse.domain.PreparedKeywordUpdates;
+import sse.domain.KeywordUpdate;
+import sse.domain.PreparedUpdateRequest;
 import sse.domain.State;
 import sse.domain.UpdateOp;
-import sse.domain.UpdateToken;
 import sse.facade.SseClientFacade;
 
 public final class PopulateDBHandler {
@@ -65,8 +64,8 @@ public final class PopulateDBHandler {
         long sentBatches = 0L;
         long startTimeNanos = System.nanoTime();
         long lastProgressLogNanos = startTimeNanos;
-        List<PendingKeywordUpdates> pendingUpdates = new ArrayList<PendingKeywordUpdates>();
-        List<SecretKey> pendingTupleKeys = new ArrayList<SecretKey>();
+        List<KeywordUpdate> pendingUpdates = new ArrayList<KeywordUpdate>();
+        int pendingDocIds = 0;
 
         try (BufferedReader reader = datasetReader.openReader(inputPath)) {
             String line;
@@ -82,23 +81,21 @@ public final class PopulateDBHandler {
                 List<String> docIds = entry.docIds();
                 int start = 0;
                 while (start < docIds.size()) {
-                    int availableSlots = batchSize - pendingTupleKeys.size();
+                    int availableSlots = batchSize - pendingDocIds;
                     int end = Math.min(start + availableSlots, docIds.size());
                     List<String> batchDocIds = docIds.subList(start, end);
-                    PreparedKeywordUpdates preparedUpdates = sseClientFacade.prepareKeywordUpdates(
+                    pendingUpdates.add(new KeywordUpdate(
                             entry.keyword(),
                             batchDocIds,
                             UpdateOp.ADD
-                    );
+                    ));
 
-                    pendingUpdates.add(preparedUpdates.pendingUpdates());
-                    pendingTupleKeys.addAll(preparedUpdates.tupleKeys());
+                    pendingDocIds += batchDocIds.size();
                     start = end;
 
-                    if (pendingTupleKeys.size() == batchSize) {
+                    if (pendingDocIds == batchSize) {
                         SentBatch sentBatch = sendPendingBatch(
                                 pendingUpdates,
-                                pendingTupleKeys,
                                 tokenGenKey,
                                 updateCounterKey,
                                 currentState
@@ -107,7 +104,7 @@ public final class PopulateDBHandler {
                         processedDocIds += sentBatch.sentDocIds();
                         sentBatches++;
                         pendingUpdates.clear();
-                        pendingTupleKeys.clear();
+                        pendingDocIds = 0;
 
                         long now = System.nanoTime();
                         if (shouldLogProgress(lastProgressLogNanos, now)) {
@@ -120,10 +117,9 @@ public final class PopulateDBHandler {
                 processedKeywords++;
             }
 
-            if (!pendingTupleKeys.isEmpty()) {
+            if (pendingDocIds > 0) {
                 SentBatch sentBatch = sendPendingBatch(
                         pendingUpdates,
-                        pendingTupleKeys,
                         tokenGenKey,
                         updateCounterKey,
                         currentState
@@ -149,27 +145,30 @@ public final class PopulateDBHandler {
         }
     }
 
-    private SentBatch sendPendingBatch(List<PendingKeywordUpdates> pendingUpdates, List<SecretKey> pendingTupleKeys,
+    private SentBatch sendPendingBatch(List<KeywordUpdate> pendingUpdates,
                                        SecretKey tokenGenKey, SecretKey updateCounterKey, State currentState) {
-        UpdateToken updateToken = sseClientFacade.generateUpdateToken(
+        PreparedUpdateRequest preparedUpdateRequest = sseClientFacade.prepareUpdateRequest(
                 tokenGenKey,
                 updateCounterKey,
                 currentState,
                 pendingUpdates
         );
-        if (updateToken.items().size() != pendingTupleKeys.size()) {
+
+        if (preparedUpdateRequest.updateToken().items().size() != preparedUpdateRequest.tupleKeys().size()) {
             throw new IllegalStateException("Update item/key count mismatch: items="
-                    + updateToken.items().size() + ", keys=" + pendingTupleKeys.size());
+                    + preparedUpdateRequest.updateToken().items().size()
+                    + ", keys=" + preparedUpdateRequest.tupleKeys().size());
         }
 
-        SecretKey[] tupleKeys = pendingTupleKeys.toArray(new SecretKey[pendingTupleKeys.size()]);
-        if (!adapter.sendUpdateRequest(updateToken, tupleKeys)) {
+        SecretKey[] tupleKeys = preparedUpdateRequest.tupleKeys()
+                .toArray(new SecretKey[preparedUpdateRequest.tupleKeys().size()]);
+        if (!adapter.sendUpdateRequest(preparedUpdateRequest.updateToken(), tupleKeys)) {
             throw new IllegalStateException("Server rejected update batch");
         }
 
         return new SentBatch(
-                new State(currentState.searchCounter(), updateToken.encryptedUpdateCounter()),
-                updateToken.items().size()
+                new State(currentState.searchCounter(), preparedUpdateRequest.updateToken().encryptedUpdateCounter()),
+                preparedUpdateRequest.updateToken().items().size()
         );
     }
 

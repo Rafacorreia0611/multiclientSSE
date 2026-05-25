@@ -18,14 +18,12 @@ import sse.crypto.UpdateCounterEncryption;
 import sse.domain.EncryptedUpdateCounter;
 import sse.domain.EncryptedUpdateTuple;
 import sse.domain.InitializationMaterial;
-import sse.domain.PendingKeywordUpdates;
-import sse.domain.PreparedKeywordUpdates;
+import sse.domain.KeywordUpdate;
+import sse.domain.PreparedUpdateRequest;
 import sse.domain.SearchToken;
 import sse.domain.State;
-import sse.domain.UpdateToken;
 import sse.domain.UpdateTuple;
 import sse.domain.KeywordToken;
-import sse.domain.UpdateOp;
 import sse.service.client.SearchTokenService;
 import sse.service.client.UpdateTokenService;
 
@@ -37,14 +35,6 @@ public final class SseClientFacade {
     public SseClientFacade() {
         this.searchTokenService = new SearchTokenService();
         this.updateTokenService = new UpdateTokenService();
-    }
-
-    public SecretKey generateTupleSecretKey() {
-        return updateTokenService.generateTupleSecretKey();
-    }
-
-    public byte[] generateTupleIv() {
-        return updateTokenService.generateTupleIv();
     }
 
     public InitializationMaterial generateInitialStateData() {
@@ -75,18 +65,13 @@ public final class SseClientFacade {
         return searchTokenService.generateSearchToken(tokenGenKey, updateCounterKey, state, keyword);
     }
 
-    public PreparedKeywordUpdates prepareKeywordUpdates(String keyword, List<String> docIds, UpdateOp operation) {
-        return updateTokenService.prepareKeywordUpdates(keyword, docIds, operation);
-    }
-
-    public UpdateToken generateUpdateToken(SecretKey tokenGenKey, SecretKey updateCounterKey,
-                                           State state,
-                                           List<PendingKeywordUpdates> pendingUpdates) {
-        return updateTokenService.generateUpdateToken(
+    public PreparedUpdateRequest prepareUpdateRequest(SecretKey tokenGenKey, SecretKey updateCounterKey,
+                                                      State state, List<KeywordUpdate> updates) {
+        return updateTokenService.prepareUpdateRequest(
                 tokenGenKey,
                 updateCounterKey,
                 state,
-                pendingUpdates
+                updates
         );
     }
 
