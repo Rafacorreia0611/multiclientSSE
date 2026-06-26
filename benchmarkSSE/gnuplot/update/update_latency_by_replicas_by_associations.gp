@@ -33,7 +33,7 @@ if (!exists("output_format")) {
 
 if (output_format eq "pdf") {
     output_ext = "pdf"
-    set terminal pdfcairo enhanced color size 9.8in,5.6in font plot_font_spec
+    set terminal pdfcairo enhanced color size 7.0in,4.0in font plot_font_spec
 } else {
     output_ext = "png"
     set terminal pngcairo size 980,560 enhanced font plot_font_spec
