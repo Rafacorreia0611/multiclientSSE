@@ -27,7 +27,17 @@ plot_font_spec = sprintf("%s,%d", plot_font, plot_font_size)
 plot_label_font_spec = sprintf("%s,%d", plot_font, plot_font_size + 2)
 
 set datafile separator "\t"
-set terminal pngcairo size 980,560 enhanced font plot_font_spec
+if (!exists("output_format")) {
+    output_format = "pdf"
+}
+
+if (output_format eq "pdf") {
+    output_ext = "pdf"
+    set terminal pdfcairo enhanced color size 9.8in,5.6in font plot_font_spec
+} else {
+    output_ext = "png"
+    set terminal pngcairo size 980,560 enhanced font plot_font_spec
+}
 
 set border lw 1.2
 set tics out nomirror font plot_font_spec
@@ -58,7 +68,7 @@ set style line 6 lc rgb "#e6ab02" lt 1 lw 2.4 pt 4 ps 1.25
 set style line 7 lc rgb "#a6761d" lt 1 lw 2.4 pt 6 ps 1.25
 set style line 8 lc rgb "#666666" lt 1 lw 2.4 pt 8 ps 1.25
 
-set output sprintf("%s/search_latency_by_replicas.png", output_dir)
+set output sprintf("%s/search_latency_by_replicas.%s", output_dir, output_ext)
 unset title
 plot for [i=1:bucket_count] sprintf("< awk -F'\\t' 'NR > 1 && ($1 == 4 || $1 == 7 || $1 == 10) && $7 == \"fresh\" && $3 == \"%s\" { print $1 \"\\t\" $11 }' %s", word(bucket_specs, i), input_path) using 1:2 with linespoints ls i title sprintf("%s Docs Returned", word(bucket_labels, i))
 

@@ -250,23 +250,15 @@ generate_plots() {
 }
 
 verify_outputs() {
-  local plot_name
-
   if [[ ! -s "$SWEEP_SUMMARY_PATH" ]]; then
     echo "Aggregated summary is missing or empty: $SWEEP_SUMMARY_PATH" >&2
     exit 1
   fi
 
-  for plot_name in \
-    search_latency_by_replicas_median_fresh.png \
-    search_latency_by_replicas_median_cached.png \
-    search_latency_by_replicas_mean_fresh.png \
-    search_latency_by_replicas_mean_cached.png; do
-    if [[ ! -s "$SWEEP_PLOTS_DIR/$plot_name" ]]; then
-      echo "Plot is missing or empty: $SWEEP_PLOTS_DIR/$plot_name" >&2
-      exit 1
-    fi
-  done
+  if [[ ! -s "$SWEEP_PLOTS_DIR/search_latency_by_replicas.pdf" ]]; then
+    echo "Plot is missing or empty: $SWEEP_PLOTS_DIR/search_latency_by_replicas.pdf" >&2
+    exit 1
+  fi
 }
 
 main() {
@@ -297,7 +289,7 @@ main() {
   verify_outputs
 
   echo "Replica sweep summary written to $SWEEP_SUMMARY_PATH"
-  echo "Replica sweep plots written to $SWEEP_PLOTS_DIR"
+  echo "Replica sweep plot written to $SWEEP_PLOTS_DIR/search_latency_by_replicas.pdf"
 }
 
 main "$@"
