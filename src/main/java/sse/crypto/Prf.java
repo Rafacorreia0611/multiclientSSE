@@ -8,7 +8,9 @@ import javax.crypto.Mac;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
-public class Prf {
+public final class Prf {
+
+    public static final String ALGORITHM = "HmacSHA256";
 
     private Prf() {
         // Utility class, prevent instantiation
@@ -16,7 +18,7 @@ public class Prf {
 
     public static byte[] prf(SecretKey key, byte[] input) {
         try {
-            Mac hmac = Mac.getInstance("HmacSHA256");
+            Mac hmac = Mac.getInstance(ALGORITHM);
             hmac.init(key);
             return hmac.doFinal(input);
         } catch (GeneralSecurityException e) {
@@ -33,7 +35,7 @@ public class Prf {
     }
     
     public static byte[] prf(byte[] keyBytes, byte[] input) {
-        return prf(new SecretKeySpec(keyBytes, "HmacSHA256"), input);
+        return prf(new SecretKeySpec(keyBytes, ALGORITHM), input);
     }
 
     public static byte[] prf(byte[] keyBytes, String input) {
