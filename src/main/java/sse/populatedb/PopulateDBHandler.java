@@ -3,6 +3,7 @@ package sse.populatedb;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.security.interfaces.RSAPrivateKey;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -56,7 +57,7 @@ public final class PopulateDBHandler {
         ConfidentialClientAdapter.StateRequestResult stateRequest = adapter.requestSetupState();
         State currentState = stateRequest.state();
         SecretKey tokenGenKey = stateRequest.tokenGenKey();
-        SecretKey updateCounterKey = stateRequest.updateCounterKey();
+        RSAPrivateKey trapdoorPrivateKey = stateRequest.trapdoorPrivateKey();
 
         boolean completed = false;
         long processedKeywords = 0L;
@@ -97,7 +98,7 @@ public final class PopulateDBHandler {
                         SentBatch sentBatch = sendPendingBatch(
                                 pendingUpdates,
                                 tokenGenKey,
-                                updateCounterKey,
+                                trapdoorPrivateKey,
                                 currentState
                         );
                         currentState = sentBatch.state();
@@ -121,7 +122,7 @@ public final class PopulateDBHandler {
                 SentBatch sentBatch = sendPendingBatch(
                         pendingUpdates,
                         tokenGenKey,
-                        updateCounterKey,
+                        trapdoorPrivateKey,
                         currentState
                 );
                 currentState = sentBatch.state();
@@ -146,10 +147,10 @@ public final class PopulateDBHandler {
     }
 
     private SentBatch sendPendingBatch(List<KeywordUpdate> pendingUpdates,
-                                       SecretKey tokenGenKey, SecretKey updateCounterKey, State currentState) {
+                                       SecretKey tokenGenKey, RSAPrivateKey trapdoorPrivateKey, State currentState) {
         PreparedUpdateRequest preparedUpdateRequest = sseClientFacade.prepareUpdateRequest(
                 tokenGenKey,
-                updateCounterKey,
+                trapdoorPrivateKey,
                 currentState,
                 pendingUpdates
         );

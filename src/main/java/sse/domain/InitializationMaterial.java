@@ -1,33 +1,35 @@
 package sse.domain;
 
+import java.security.interfaces.RSAPrivateKey;
+import java.security.interfaces.RSAPublicKey;
+
 import javax.crypto.SecretKey;
 
 public final class InitializationMaterial {
 
     private final SecretKey tokenGenKey;
-    private final SecretKey updateCounterKey;
-    private final EncryptedUpdateCounter encryptedUpdateCounter;
+    private final RSAPublicKey trapdoorPublicKey;
+    private final RSAPrivateKey trapdoorPrivateKey;
 
-    public InitializationMaterial(SecretKey tokenGenKey, SecretKey updateCounterKey,
-                                  EncryptedUpdateCounter encryptedUpdateCounter) {
-        if (tokenGenKey == null || updateCounterKey == null || encryptedUpdateCounter == null) {
-            throw new IllegalArgumentException(
-                    "tokenGenKey, updateCounterKey, and encryptedUpdateCounter cannot be null");
+    public InitializationMaterial(SecretKey tokenGenKey, RSAPublicKey trapdoorPublicKey,
+                                  RSAPrivateKey trapdoorPrivateKey) {
+        if (tokenGenKey == null || trapdoorPublicKey == null || trapdoorPrivateKey == null) {
+            throw new IllegalArgumentException("tokenGenKey and trapdoor keys cannot be null");
         }
         this.tokenGenKey = tokenGenKey;
-        this.updateCounterKey = updateCounterKey;
-        this.encryptedUpdateCounter = encryptedUpdateCounter;
+        this.trapdoorPublicKey = trapdoorPublicKey;
+        this.trapdoorPrivateKey = trapdoorPrivateKey;
     }
 
     public SecretKey tokenGenKey() {
         return tokenGenKey;
     }
 
-    public SecretKey updateCounterKey() {
-        return updateCounterKey;
+    public RSAPublicKey trapdoorPublicKey() {
+        return trapdoorPublicKey;
     }
 
-    public EncryptedUpdateCounter encryptedUpdateCounter() {
-        return encryptedUpdateCounter;
+    public RSAPrivateKey trapdoorPrivateKey() {
+        return trapdoorPrivateKey;
     }
 }

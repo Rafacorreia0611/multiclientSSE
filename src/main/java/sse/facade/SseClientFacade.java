@@ -3,8 +3,10 @@ package sse.facade;
 import java.io.IOException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
+import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
-import java.util.HashMap;
+import java.security.interfaces.RSAPrivateKey;
+import java.security.interfaces.RSAPublicKey;
 import java.util.List;
 import java.util.Map;
 
@@ -14,8 +16,7 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 
-import sse.crypto.UpdateCounterEncryption;
-import sse.domain.EncryptedUpdateCounter;
+import sse.crypto.TrapdoorPermutation;
 import sse.domain.EncryptedUpdateTuple;
 import sse.domain.InitializationMaterial;
 import sse.domain.KeywordUpdate;
@@ -23,7 +24,6 @@ import sse.domain.PreparedUpdateRequest;
 import sse.domain.SearchToken;
 import sse.domain.State;
 import sse.domain.UpdateTuple;
-import sse.domain.KeywordToken;
 import sse.service.client.SearchTokenService;
 import sse.service.client.UpdateTokenService;
 
@@ -39,18 +39,12 @@ public final class SseClientFacade {
 
     public InitializationMaterial generateInitialStateData() {
         SecretKey tokenGenKey = generateTokenGenKey();
-        SecretKey updateCounterKey = UpdateCounterEncryption.generateRandomKey();
-        EncryptedUpdateCounter encryptedUpdateCounter;
-        try {
-            encryptedUpdateCounter = UpdateCounterEncryption.encryptUpdateCounter(
-                    updateCounterKey,
-                    UpdateCounterEncryption.generateIv(),
-                    new HashMap<KeywordToken, Integer>()
-            );
-        } catch (Exception e) {
-            throw new RuntimeException("Error encrypting initial update counter", e);
-        }
-        return new InitializationMaterial(tokenGenKey, updateCounterKey, encryptedUpdateCounter);
+        KeyPair trapdoorKeyPair = TrapdoorPermutation.generateKeyPair();
+        return new InitializationMaterial(
+                tokenGenKey,
+                (RSAPublicKey) trapdoorKeyPair.getPublic(),
+                (RSAPrivateKey) trapdoorKeyPair.getPrivate()
+        );
     }
 
     public UpdateTuple decryptUpdateTuple(SecretKey key, byte[] iv, EncryptedUpdateTuple encryptedTuple)
@@ -60,16 +54,16 @@ public final class SseClientFacade {
         return searchTokenService.decryptUpdateTuple(key, iv, encryptedTuple);
     }
 
-    public SearchToken generateSearchToken(SecretKey tokenGenKey, SecretKey updateCounterKey,
+    public SearchToken generateSearchToken(SecretKey tokenGenKey, RSAPrivateKey trapdoorPrivateKey,
                                            State state, String keyword) {
-        return searchTokenService.generateSearchToken(tokenGenKey, updateCounterKey, state, keyword);
+        return searchTokenService.generateSearchToken(tokenGenKey, trapdoorPrivateKey, state, keyword);
     }
 
-    public PreparedUpdateRequest prepareUpdateRequest(SecretKey tokenGenKey, SecretKey updateCounterKey,
+    public PreparedUpdateRequest prepareUpdateRequest(SecretKey tokenGenKey, RSAPrivateKey trapdoorPrivateKey,
                                                       State state, List<KeywordUpdate> updates) {
         return updateTokenService.prepareUpdateRequest(
                 tokenGenKey,
-                updateCounterKey,
+                trapdoorPrivateKey,
                 state,
                 updates
         );

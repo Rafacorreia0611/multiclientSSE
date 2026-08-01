@@ -2,6 +2,7 @@ package sse.demo.client;
 
 import java.util.List;
 import java.util.Map;
+import java.security.interfaces.RSAPrivateKey;
 
 import javax.crypto.SecretKey;
 
@@ -37,11 +38,11 @@ public final class SseClientHandler {
             ConfidentialClientAdapter.StateRequestResult stateRequest = adapter.requestState();
             State state = stateRequest.state();
             SecretKey tokenGenKey = stateRequest.tokenGenKey();
-            SecretKey updateCounterKey = stateRequest.updateCounterKey();
+            RSAPrivateKey trapdoorPrivateKey = stateRequest.trapdoorPrivateKey();
 
             SearchToken searchToken = sseClientFacade.generateSearchToken(
                     tokenGenKey,
-                    updateCounterKey,
+                    trapdoorPrivateKey,
                     state,
                     keyword
             );
@@ -61,11 +62,11 @@ public final class SseClientHandler {
             ConfidentialClientAdapter.StateRequestResult stateRequest = adapter.requestState();
             State state = stateRequest.state();
             SecretKey tokenGenKey = stateRequest.tokenGenKey();
-            SecretKey updateCounterKey = stateRequest.updateCounterKey();
+            RSAPrivateKey trapdoorPrivateKey = stateRequest.trapdoorPrivateKey();
 
             PreparedUpdateRequest preparedUpdateRequest = sseClientFacade.prepareUpdateRequest(
                     tokenGenKey,
-                    updateCounterKey,
+                    trapdoorPrivateKey,
                     state,
                     updates
             );

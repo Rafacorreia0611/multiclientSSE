@@ -3,6 +3,7 @@ package sse.service.client;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.security.interfaces.RSAPrivateKey;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -26,7 +27,7 @@ import sse.domain.UpdateTuple;
 
 public final class SearchTokenService {
 
-    public SearchToken generateSearchToken(SecretKey tokenGenKey, SecretKey updateCounterKey,
+    public SearchToken generateSearchToken(SecretKey tokenGenKey, RSAPrivateKey trapdoorPrivateKey,
                                            State state, String keyword) {
         byte[] keywordTokenBytes = Prf.prf(tokenGenKey, keyword);
         KeywordToken keywordToken = new KeywordToken(keywordTokenBytes);

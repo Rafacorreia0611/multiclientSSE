@@ -2,8 +2,9 @@ package sse.facade;
 
 import java.util.Map;
 import java.util.List;
+import java.security.interfaces.RSAPublicKey;
 
-import sse.domain.EncryptedUpdateCounter;
+import sse.crypto.TrapdoorPermutation;
 import sse.domain.IndexAddress;
 import sse.domain.SearchResponseData;
 import sse.domain.SearchToken;
@@ -46,15 +47,18 @@ public final class SseServerFacade {
         if (!state.isInitialized()) {
             throw new IllegalStateException("Server state is not initialized");
         }
-        return new State(state.searchCounter(), state.encryptedUpdateCounter());
+        return new State(
+                state.keywordStates(),
+                TrapdoorPermutation.encodePublicKey(state.trapdoorPublicKey())
+        );
     }
 
     public VerifiableShare getTokenGenKey() {
         return state.keyShareStore().tokenGenKeyShare();
     }
 
-    public VerifiableShare getUpdateCounterKey() {
-        return state.keyShareStore().updateCounterKeyShare();
+    public VerifiableShare getTrapdoorPrivateKey() {
+        return state.keyShareStore().trapdoorPrivateKeyShare();
     }
 
     public int getActiveClientId() {
@@ -87,21 +91,29 @@ public final class SseServerFacade {
         return state.setupInProgress();
     }
 
-    public Boolean initializeState(EncryptedUpdateCounter encryptedUpdateCounter,
+    public Boolean initializeState(byte[] encodedTrapdoorPublicKey,
                                    VerifiableShare tokenGenKeyShare,
-                                   VerifiableShare updateCounterKeyShare) {
-        if (encryptedUpdateCounter == null || tokenGenKeyShare == null || updateCounterKeyShare == null) {
+                                   VerifiableShare trapdoorPrivateKeyShare) {
+        if (encodedTrapdoorPublicKey == null || tokenGenKeyShare == null || trapdoorPrivateKeyShare == null) {
             return false;
         }
-        if (state.encryptedUpdateCounter() != null
+        if (state.isInitialized()
                 || state.keyShareStore().hasTokenGenKeyShare()
-                || state.keyShareStore().hasUpdateCounterKeyShare()) {
+                || state.keyShareStore().hasTrapdoorPrivateKeyShare()
+                || state.trapdoorPublicKey() != null) {
             return false;
         }
 
-        state.setEncryptedUpdateCounter(encryptedUpdateCounter);
+        RSAPublicKey trapdoorPublicKey;
+        try {
+            trapdoorPublicKey = TrapdoorPermutation.decodePublicKey(encodedTrapdoorPublicKey);
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+
+        state.setTrapdoorPublicKey(trapdoorPublicKey);
         state.keyShareStore().setTokenGenKeyShare(tokenGenKeyShare);
-        state.keyShareStore().setUpdateCounterKeyShare(updateCounterKeyShare);
+        state.keyShareStore().setTrapdoorPrivateKeyShare(trapdoorPrivateKeyShare);
         return true;
     }
 
@@ -111,23 +123,23 @@ public final class SseServerFacade {
 
     public VerifiableShare[] getSnapshotShares(List<IndexAddress> updateTupleShareOrder,
                                                boolean includeTokenGenKeyShare,
-                                               boolean includeUpdateCounterKeyShare) {
+                                               boolean includeTrapdoorPrivateKeyShare) {
         return snapshotService.getSnapshotShares(
                 state,
                 updateTupleShareOrder,
                 includeTokenGenKeyShare,
-                includeUpdateCounterKeyShare
+                includeTrapdoorPrivateKeyShare
         );
     }
 
     public void installSnapshot(SsePlainSnapshotData snapshotData, VerifiableShare tokenGenKeyShare,
-                                VerifiableShare updateCounterKeyShare,
+                                VerifiableShare trapdoorPrivateKeyShare,
                                 Map<IndexAddress, VerifiableShare> updateTupleShares) {
         snapshotService.installSnapshot(
                 state,
                 snapshotData,
                 tokenGenKeyShare,
-                updateCounterKeyShare,
+                trapdoorPrivateKeyShare,
                 updateTupleShares
         );
     }

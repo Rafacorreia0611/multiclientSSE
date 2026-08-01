@@ -9,7 +9,6 @@ import java.util.Map;
 import confidential.ConfidentialMessage;
 import confidential.statemanagement.ConfidentialSnapshot;
 import sse.demo.messages.ResponseStatus;
-import sse.domain.EncryptedUpdateCounter;
 import sse.domain.SearchResponseData;
 import sse.domain.SearchToken;
 import sse.domain.State;
@@ -29,10 +28,10 @@ public final class SseServerHandler {
         this.sseServerFacade = new SseServerFacade();
     }
 
-    public boolean initializeState(EncryptedUpdateCounter encryptedUpdateCounter,
+    public boolean initializeState(byte[] encodedTrapdoorPublicKey,
                                    VerifiableShare tokenGenKeyShare,
-                                   VerifiableShare updateCounterKeyShare) {
-        return sseServerFacade.initializeState(encryptedUpdateCounter, tokenGenKeyShare, updateCounterKeyShare);
+                                   VerifiableShare trapdoorPrivateKeyShare) {
+        return sseServerFacade.initializeState(encodedTrapdoorPublicKey, tokenGenKeyShare, trapdoorPrivateKeyShare);
     }
 
     public ConfidentialMessage handleSearch(int clientId, SearchToken searchToken) {
@@ -80,15 +79,15 @@ public final class SseServerHandler {
 
         State state = sseServerFacade.getState();
         VerifiableShare tokenGenKeyShare = sseServerFacade.getTokenGenKey();
-        VerifiableShare updateCounterKeyShare = sseServerFacade.getUpdateCounterKey();
+        VerifiableShare trapdoorPrivateKeyShare = sseServerFacade.getTrapdoorPrivateKey();
 
         sseServerFacade.activateClient(clientId, setupRequested);
         byte[] plainResponse = serializeResponse(ResponseStatus.OK, state);
-        if (tokenGenKeyShare == null || updateCounterKeyShare == null) {
+        if (tokenGenKeyShare == null || trapdoorPrivateKeyShare == null) {
             return new ConfidentialMessage(plainResponse);
         }
 
-        return new ConfidentialMessage(plainResponse, tokenGenKeyShare, updateCounterKeyShare);
+        return new ConfidentialMessage(plainResponse, tokenGenKeyShare, trapdoorPrivateKeyShare);
     }
 
     public ConfidentialMessage handleUpdate(int clientId, UpdateToken updateToken, VerifiableShare[] updateTupleKeyShares) {
@@ -152,7 +151,7 @@ public final class SseServerHandler {
         VerifiableShare[] shares = sseServerFacade.getSnapshotShares(
                 sseSnapshotData.updateTupleShareOrder(),
                 sseSnapshotData.hasTokenGenKeyShare(),
-                sseSnapshotData.hasUpdateCounterKeyShare()
+                sseSnapshotData.hasTrapdoorPrivateKeyShare()
         );
         return new ConfidentialSnapshot(plainData, shares);
     }
@@ -162,7 +161,7 @@ public final class SseServerHandler {
         sseServerFacade.installSnapshot(
                 snapshot,
                 snapshot.tokenGenKeyShare(cs.getShares()),
-                snapshot.updateCounterKeyShare(cs.getShares()),
+                snapshot.trapdoorPrivateKeyShare(cs.getShares()),
                 snapshot.updateTupleShares(cs.getShares())
         );
     }

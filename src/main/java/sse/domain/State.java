@@ -8,6 +8,7 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutput;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -15,16 +16,22 @@ import java.util.Objects;
 
 public final class State implements Serializable {
     private final Map<KeywordToken, KeywordState> keywordStates;
+    private final byte[] encodedTrapdoorPublicKey;
 
-    public State(Map<KeywordToken, KeywordState> keywordStates) {
-        if (keywordStates == null) {
-            throw new IllegalArgumentException("keywordStates cannot be null");
+    public State(Map<KeywordToken, KeywordState> keywordStates, byte[] encodedTrapdoorPublicKey) {
+        if (keywordStates == null || encodedTrapdoorPublicKey == null) {
+            throw new IllegalArgumentException("keywordStates and encodedTrapdoorPublicKey cannot be null");
         }
         this.keywordStates = Collections.unmodifiableMap(new LinkedHashMap<>(keywordStates));
+        this.encodedTrapdoorPublicKey = encodedTrapdoorPublicKey.clone();
     }
 
     public Map<KeywordToken, KeywordState> keywordStates() {
         return keywordStates;
+    }
+
+    public byte[] encodedTrapdoorPublicKey() {
+        return encodedTrapdoorPublicKey.clone();
     }
 
     public byte[] serialize() {
@@ -60,18 +67,22 @@ public final class State implements Serializable {
             return false;
         }
         State state = (State) o;
-        return Objects.equals(keywordStates, state.keywordStates);
+        return Objects.equals(keywordStates, state.keywordStates) &&
+                Arrays.equals(encodedTrapdoorPublicKey, state.encodedTrapdoorPublicKey);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(keywordStates);
+        int result = Objects.hash(keywordStates);
+        result = 31 * result + Arrays.hashCode(encodedTrapdoorPublicKey);
+        return result;
     }
 
     @Override
     public String toString() {
         return "State[" +
                 "keywordStates=" + keywordStates +
+                ", encodedTrapdoorPublicKeyLength=" + encodedTrapdoorPublicKey.length +
                 ']';
     }
 }

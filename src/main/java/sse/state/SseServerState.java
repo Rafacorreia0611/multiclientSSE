@@ -1,5 +1,6 @@
 package sse.state;
 
+import java.security.interfaces.RSAPublicKey;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -9,6 +10,7 @@ import sse.domain.KeywordToken;
 public final class SseServerState {
 
     private Map<KeywordToken, KeywordState> keywordStates;
+    private RSAPublicKey trapdoorPublicKey;
     private int activeClientId;
     private int blockedStateRequestsWhileActive;
     private boolean setupInProgress;
@@ -18,6 +20,7 @@ public final class SseServerState {
 
     public SseServerState() {
         this.keywordStates = new LinkedHashMap<>();
+        this.trapdoorPublicKey = null;
         this.activeClientId = -1;
         this.blockedStateRequestsWhileActive = 0;
         this.setupInProgress = false;
@@ -32,6 +35,14 @@ public final class SseServerState {
 
     public void setKeywordStates(Map<KeywordToken, KeywordState> keywordStates) {
         this.keywordStates = new LinkedHashMap<>(keywordStates);
+    }
+
+    public RSAPublicKey trapdoorPublicKey() {
+        return trapdoorPublicKey;
+    }
+
+    public void setTrapdoorPublicKey(RSAPublicKey trapdoorPublicKey) {
+        this.trapdoorPublicKey = trapdoorPublicKey;
     }
 
     public int activeClientId() {
@@ -59,7 +70,9 @@ public final class SseServerState {
     }
 
     public boolean isInitialized() {
-        return keyShareStore.hasTokenGenKeyShare();
+        return trapdoorPublicKey != null
+                && keyShareStore.hasTokenGenKeyShare()
+                && keyShareStore.hasTrapdoorPrivateKeyShare();
     }
 
     public SearchCache searchCache() {

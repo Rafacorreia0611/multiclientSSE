@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.security.interfaces.RSAPrivateKey;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -55,7 +56,7 @@ public final class UpdateTokenService {
         }
     }
 
-    public PreparedUpdateRequest prepareUpdateRequest(SecretKey tokenGenKey, SecretKey updateCounterKey,
+    public PreparedUpdateRequest prepareUpdateRequest(SecretKey tokenGenKey, RSAPrivateKey trapdoorPrivateKey,
                                                       State state, List<KeywordUpdate> updates) {
         if (updates == null || updates.isEmpty()) {
             throw new IllegalArgumentException("updates cannot be null or empty");
