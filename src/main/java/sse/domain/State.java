@@ -14,23 +14,17 @@ import java.util.Map;
 import java.util.Objects;
 
 public final class State implements Serializable {
-    private final Map<KeywordToken, Integer> searchCounter;
-    private final EncryptedUpdateCounter encryptedUpdateCounter;
+    private final Map<KeywordToken, KeywordState> keywordStates;
 
-    public State(Map<KeywordToken, Integer> searchCounter, EncryptedUpdateCounter encryptedUpdateCounter) {
-        if (searchCounter == null || encryptedUpdateCounter == null) {
-            throw new IllegalArgumentException("searchCounter and encryptedUpdateCounter cannot be null");
+    public State(Map<KeywordToken, KeywordState> keywordStates) {
+        if (keywordStates == null) {
+            throw new IllegalArgumentException("keywordStates cannot be null");
         }
-        this.searchCounter = Collections.unmodifiableMap(new LinkedHashMap<>(searchCounter));
-        this.encryptedUpdateCounter = encryptedUpdateCounter;
+        this.keywordStates = Collections.unmodifiableMap(new LinkedHashMap<>(keywordStates));
     }
 
-    public Map<KeywordToken, Integer> searchCounter() {
-        return searchCounter;
-    }
-
-    public EncryptedUpdateCounter encryptedUpdateCounter() {
-        return encryptedUpdateCounter;
+    public Map<KeywordToken, KeywordState> keywordStates() {
+        return keywordStates;
     }
 
     public byte[] serialize() {
@@ -66,20 +60,18 @@ public final class State implements Serializable {
             return false;
         }
         State state = (State) o;
-        return Objects.equals(searchCounter, state.searchCounter) &&
-                Objects.equals(encryptedUpdateCounter, state.encryptedUpdateCounter);
+        return Objects.equals(keywordStates, state.keywordStates);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(searchCounter, encryptedUpdateCounter);
+        return Objects.hash(keywordStates);
     }
 
     @Override
     public String toString() {
         return "State[" +
-                "searchCounter=" + searchCounter +
-                ", encryptedUpdateCounter=" + encryptedUpdateCounter +
+                "keywordStates=" + keywordStates +
                 ']';
     }
 }

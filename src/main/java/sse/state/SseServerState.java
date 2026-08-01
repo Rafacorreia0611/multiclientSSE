@@ -3,13 +3,12 @@ package sse.state;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import sse.domain.EncryptedUpdateCounter;
+import sse.domain.KeywordState;
 import sse.domain.KeywordToken;
 
 public final class SseServerState {
 
-    private Map<KeywordToken, Integer> searchCounter;
-    private EncryptedUpdateCounter encryptedUpdateCounter;
+    private Map<KeywordToken, KeywordState> keywordStates;
     private int activeClientId;
     private int blockedStateRequestsWhileActive;
     private boolean setupInProgress;
@@ -18,8 +17,7 @@ public final class SseServerState {
     private final KeyShareStore keyShareStore;
 
     public SseServerState() {
-        this.searchCounter = new LinkedHashMap<>();
-        this.encryptedUpdateCounter = null;
+        this.keywordStates = new LinkedHashMap<>();
         this.activeClientId = -1;
         this.blockedStateRequestsWhileActive = 0;
         this.setupInProgress = false;
@@ -28,20 +26,12 @@ public final class SseServerState {
         this.keyShareStore = new KeyShareStore();
     }
 
-    public Map<KeywordToken, Integer> searchCounter() {
-        return searchCounter;
+    public Map<KeywordToken, KeywordState> keywordStates() {
+        return keywordStates;
     }
 
-    public void setSearchCounter(Map<KeywordToken, Integer> searchCounter) {
-        this.searchCounter = new LinkedHashMap<>(searchCounter);
-    }
-
-    public EncryptedUpdateCounter encryptedUpdateCounter() {
-        return encryptedUpdateCounter;
-    }
-
-    public void setEncryptedUpdateCounter(EncryptedUpdateCounter encryptedUpdateCounter) {
-        this.encryptedUpdateCounter = encryptedUpdateCounter;
+    public void setKeywordStates(Map<KeywordToken, KeywordState> keywordStates) {
+        this.keywordStates = new LinkedHashMap<>(keywordStates);
     }
 
     public int activeClientId() {
@@ -69,9 +59,7 @@ public final class SseServerState {
     }
 
     public boolean isInitialized() {
-        return encryptedUpdateCounter != null
-                && keyShareStore.hasTokenGenKeyShare()
-                && keyShareStore.hasUpdateCounterKeyShare();
+        return keyShareStore.hasTokenGenKeyShare();
     }
 
     public SearchCache searchCache() {
