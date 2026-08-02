@@ -1,8 +1,9 @@
 package sse.demo.client;
 
+import java.security.interfaces.RSAPrivateKey;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.security.interfaces.RSAPrivateKey;
 
 import javax.crypto.SecretKey;
 
@@ -37,15 +38,16 @@ public final class SseClientHandler {
         while (true) {
             ConfidentialClientAdapter.StateRequestResult stateRequest = adapter.requestState();
             State state = stateRequest.state();
-            SecretKey tokenGenKey = stateRequest.tokenGenKey();
-            RSAPrivateKey trapdoorPrivateKey = stateRequest.trapdoorPrivateKey();
+            SecretKey masterKey = stateRequest.masterKey();
 
             SearchToken searchToken = sseClientFacade.generateSearchToken(
-                    tokenGenKey,
-                    trapdoorPrivateKey,
+                    masterKey,
                     state,
                     keyword
             );
+            if (searchToken == null) {
+                return Collections.emptyList();
+            }
             Map<EncryptedUpdateTuple, SecretKey> searchResults = adapter.sendSearchRequest(searchToken);
             if (searchResults != null) {
                 return sseClientFacade.extractAddedDocIds(searchResults);
@@ -61,11 +63,11 @@ public final class SseClientHandler {
         while (true) {
             ConfidentialClientAdapter.StateRequestResult stateRequest = adapter.requestState();
             State state = stateRequest.state();
-            SecretKey tokenGenKey = stateRequest.tokenGenKey();
+            SecretKey masterKey = stateRequest.masterKey();
             RSAPrivateKey trapdoorPrivateKey = stateRequest.trapdoorPrivateKey();
 
             PreparedUpdateRequest preparedUpdateRequest = sseClientFacade.prepareUpdateRequest(
-                    tokenGenKey,
+                    masterKey,
                     trapdoorPrivateKey,
                     state,
                     updates

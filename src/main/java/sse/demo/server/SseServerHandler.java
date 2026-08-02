@@ -29,9 +29,9 @@ public final class SseServerHandler {
     }
 
     public boolean initializeState(byte[] encodedTrapdoorPublicKey,
-                                   VerifiableShare tokenGenKeyShare,
+                                   VerifiableShare masterKeyShare,
                                    VerifiableShare trapdoorPrivateKeyShare) {
-        return sseServerFacade.initializeState(encodedTrapdoorPublicKey, tokenGenKeyShare, trapdoorPrivateKeyShare);
+        return sseServerFacade.initializeState(encodedTrapdoorPublicKey, masterKeyShare, trapdoorPrivateKeyShare);
     }
 
     public ConfidentialMessage handleSearch(int clientId, SearchToken searchToken) {
@@ -78,16 +78,16 @@ public final class SseServerHandler {
         }
 
         State state = sseServerFacade.getState();
-        VerifiableShare tokenGenKeyShare = sseServerFacade.getTokenGenKey();
+        VerifiableShare masterKeyShare = sseServerFacade.getMasterKey();
         VerifiableShare trapdoorPrivateKeyShare = sseServerFacade.getTrapdoorPrivateKey();
 
         sseServerFacade.activateClient(clientId, setupRequested);
         byte[] plainResponse = serializeResponse(ResponseStatus.OK, state);
-        if (tokenGenKeyShare == null || trapdoorPrivateKeyShare == null) {
+        if (masterKeyShare == null || trapdoorPrivateKeyShare == null) {
             return new ConfidentialMessage(plainResponse);
         }
 
-        return new ConfidentialMessage(plainResponse, tokenGenKeyShare, trapdoorPrivateKeyShare);
+        return new ConfidentialMessage(plainResponse, masterKeyShare, trapdoorPrivateKeyShare);
     }
 
     public ConfidentialMessage handleUpdate(int clientId, UpdateToken updateToken, VerifiableShare[] updateTupleKeyShares) {
@@ -150,7 +150,7 @@ public final class SseServerHandler {
         byte[] plainData = sseSnapshotData.serialize();
         VerifiableShare[] shares = sseServerFacade.getSnapshotShares(
                 sseSnapshotData.updateTupleShareOrder(),
-                sseSnapshotData.hasTokenGenKeyShare(),
+                sseSnapshotData.hasMasterKeyShare(),
                 sseSnapshotData.hasTrapdoorPrivateKeyShare()
         );
         return new ConfidentialSnapshot(plainData, shares);
@@ -160,7 +160,7 @@ public final class SseServerHandler {
         SsePlainSnapshotData snapshot = SsePlainSnapshotData.deserialize(cs.getPlainData());
         sseServerFacade.installSnapshot(
                 snapshot,
-                snapshot.tokenGenKeyShare(cs.getShares()),
+                snapshot.masterKeyShare(cs.getShares()),
                 snapshot.trapdoorPrivateKeyShare(cs.getShares()),
                 snapshot.updateTupleShares(cs.getShares())
         );

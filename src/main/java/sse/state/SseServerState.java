@@ -14,7 +14,6 @@ public final class SseServerState {
     private int activeClientId;
     private int blockedStateRequestsWhileActive;
     private boolean setupInProgress;
-    private final SearchCache searchCache;
     private final InvertedIndexStore invertedIndexStore;
     private final KeyShareStore keyShareStore;
 
@@ -24,7 +23,6 @@ public final class SseServerState {
         this.activeClientId = -1;
         this.blockedStateRequestsWhileActive = 0;
         this.setupInProgress = false;
-        this.searchCache = new SearchCache();
         this.invertedIndexStore = new InvertedIndexStore();
         this.keyShareStore = new KeyShareStore();
     }
@@ -71,12 +69,8 @@ public final class SseServerState {
 
     public boolean isInitialized() {
         return trapdoorPublicKey != null
-                && keyShareStore.hasTokenGenKeyShare()
+                && keyShareStore.hasMasterKeyShare()
                 && keyShareStore.hasTrapdoorPrivateKeyShare();
-    }
-
-    public SearchCache searchCache() {
-        return searchCache;
     }
 
     public InvertedIndexStore invertedIndexStore() {

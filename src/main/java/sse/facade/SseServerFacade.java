@@ -53,8 +53,8 @@ public final class SseServerFacade {
         );
     }
 
-    public VerifiableShare getTokenGenKey() {
-        return state.keyShareStore().tokenGenKeyShare();
+    public VerifiableShare getMasterKey() {
+        return state.keyShareStore().masterKeyShare();
     }
 
     public VerifiableShare getTrapdoorPrivateKey() {
@@ -92,13 +92,13 @@ public final class SseServerFacade {
     }
 
     public Boolean initializeState(byte[] encodedTrapdoorPublicKey,
-                                   VerifiableShare tokenGenKeyShare,
+                                   VerifiableShare masterKeyShare,
                                    VerifiableShare trapdoorPrivateKeyShare) {
-        if (encodedTrapdoorPublicKey == null || tokenGenKeyShare == null || trapdoorPrivateKeyShare == null) {
+        if (encodedTrapdoorPublicKey == null || masterKeyShare == null || trapdoorPrivateKeyShare == null) {
             return false;
         }
         if (state.isInitialized()
-                || state.keyShareStore().hasTokenGenKeyShare()
+                || state.keyShareStore().hasMasterKeyShare()
                 || state.keyShareStore().hasTrapdoorPrivateKeyShare()
                 || state.trapdoorPublicKey() != null) {
             return false;
@@ -112,7 +112,7 @@ public final class SseServerFacade {
         }
 
         state.setTrapdoorPublicKey(trapdoorPublicKey);
-        state.keyShareStore().setTokenGenKeyShare(tokenGenKeyShare);
+        state.keyShareStore().setMasterKeyShare(masterKeyShare);
         state.keyShareStore().setTrapdoorPrivateKeyShare(trapdoorPrivateKeyShare);
         return true;
     }
@@ -122,23 +122,23 @@ public final class SseServerFacade {
     }
 
     public VerifiableShare[] getSnapshotShares(List<IndexAddress> updateTupleShareOrder,
-                                               boolean includeTokenGenKeyShare,
+                                               boolean includeMasterKeyShare,
                                                boolean includeTrapdoorPrivateKeyShare) {
         return snapshotService.getSnapshotShares(
                 state,
                 updateTupleShareOrder,
-                includeTokenGenKeyShare,
+                includeMasterKeyShare,
                 includeTrapdoorPrivateKeyShare
         );
     }
 
-    public void installSnapshot(SsePlainSnapshotData snapshotData, VerifiableShare tokenGenKeyShare,
+    public void installSnapshot(SsePlainSnapshotData snapshotData, VerifiableShare masterKeyShare,
                                 VerifiableShare trapdoorPrivateKeyShare,
                                 Map<IndexAddress, VerifiableShare> updateTupleShares) {
         snapshotService.installSnapshot(
                 state,
                 snapshotData,
-                tokenGenKeyShare,
+                masterKeyShare,
                 trapdoorPrivateKeyShare,
                 updateTupleShares
         );

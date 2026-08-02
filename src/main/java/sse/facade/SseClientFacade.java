@@ -38,10 +38,10 @@ public final class SseClientFacade {
     }
 
     public InitializationMaterial generateInitialStateData() {
-        SecretKey tokenGenKey = generateTokenGenKey();
+        SecretKey masterKey = generateMasterKey();
         KeyPair trapdoorKeyPair = TrapdoorPermutation.generateKeyPair();
         return new InitializationMaterial(
-                tokenGenKey,
+                masterKey,
                 (RSAPublicKey) trapdoorKeyPair.getPublic(),
                 (RSAPrivateKey) trapdoorKeyPair.getPrivate()
         );
@@ -54,15 +54,14 @@ public final class SseClientFacade {
         return searchTokenService.decryptUpdateTuple(key, iv, encryptedTuple);
     }
 
-    public SearchToken generateSearchToken(SecretKey tokenGenKey, RSAPrivateKey trapdoorPrivateKey,
-                                           State state, String keyword) {
-        return searchTokenService.generateSearchToken(tokenGenKey, trapdoorPrivateKey, state, keyword);
+    public SearchToken generateSearchToken(SecretKey masterKey, State state, String keyword) {
+        return searchTokenService.generateSearchToken(masterKey, state, keyword);
     }
 
-    public PreparedUpdateRequest prepareUpdateRequest(SecretKey tokenGenKey, RSAPrivateKey trapdoorPrivateKey,
+    public PreparedUpdateRequest prepareUpdateRequest(SecretKey masterKey, RSAPrivateKey trapdoorPrivateKey,
                                                       State state, List<KeywordUpdate> updates) {
         return updateTokenService.prepareUpdateRequest(
-                tokenGenKey,
+                masterKey,
                 trapdoorPrivateKey,
                 state,
                 updates
@@ -73,12 +72,12 @@ public final class SseClientFacade {
         return searchTokenService.extractAddedDocIds(updates);
     }
 
-    private SecretKey generateTokenGenKey() {
+    private SecretKey generateMasterKey() {
         KeyGenerator keyGen;
         try {
             keyGen = KeyGenerator.getInstance("HmacSHA256");
         } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("HmacSHA256 algorithm not available for token generation key", e);
+            throw new RuntimeException("HmacSHA256 algorithm not available for master key", e);
         }
         keyGen.init(256);
         return keyGen.generateKey();

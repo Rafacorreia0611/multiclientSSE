@@ -3,7 +3,6 @@ package sse.service.client;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
-import java.security.interfaces.RSAPrivateKey;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -17,9 +16,8 @@ import javax.crypto.SecretKey;
 
 import sse.crypto.Prf;
 import sse.crypto.TupleEncryption;
-import sse.crypto.UpdateCounterEncryption;
 import sse.domain.EncryptedUpdateTuple;
-import sse.domain.EpochSearchKey;
+import sse.domain.KeywordState;
 import sse.domain.KeywordToken;
 import sse.domain.SearchToken;
 import sse.domain.State;
@@ -27,27 +25,24 @@ import sse.domain.UpdateTuple;
 
 public final class SearchTokenService {
 
-    public SearchToken generateSearchToken(SecretKey tokenGenKey, RSAPrivateKey trapdoorPrivateKey,
-                                           State state, String keyword) {
-        byte[] keywordTokenBytes = Prf.prf(tokenGenKey, keyword);
-        KeywordToken keywordToken = new KeywordToken(keywordTokenBytes);
+    private static final String TOKEN_KEY_LABEL = "TokenKey";
+    private static final String ADDRESS_KEY_LABEL = "AddressKey";
 
-        int searchCount = state.searchCounter().getOrDefault(keywordToken, 0);
-        Map<KeywordToken, Integer> updateCounter;
-        try {
-            updateCounter = UpdateCounterEncryption.decryptUpdateCounter(
-                    updateCounterKey,
-                    state.encryptedUpdateCounter()
-            );
-        } catch (Exception e) {
-            throw new RuntimeException("Error decrypting update counter", e);
+    public SearchToken generateSearchToken(SecretKey masterKey, State state, String keyword) {
+        if (masterKey == null || state == null || keyword == null) {
+            throw new IllegalArgumentException("masterKey, state, and keyword cannot be null");
         }
-        int currentUpdateCounter = updateCounter.getOrDefault(keywordToken, 0);
 
-        byte[] epochSearchKeyBytes = Prf.prf(tokenGenKey, keyword + ":" + searchCount);
-        EpochSearchKey epochSearchKey = new EpochSearchKey(epochSearchKeyBytes);
+        byte[] tokenKey = Prf.prf(masterKey, TOKEN_KEY_LABEL);
+        KeywordToken keywordToken = new KeywordToken(Prf.prf(tokenKey, keyword));
+        KeywordState keywordState = state.keywordStates().get(keywordToken);
+        if (keywordState == null) {
+            return null;
+        }
 
-        return new SearchToken(epochSearchKey, keywordToken, searchCount, currentUpdateCounter);
+        byte[] addressKey = Prf.prf(masterKey, ADDRESS_KEY_LABEL);
+        byte[] keywordAddressKey = Prf.prf(addressKey, keyword);
+        return new SearchToken(keywordAddressKey, keywordState.currentToken(), keywordState.counter());
     }
 
     public UpdateTuple decryptUpdateTuple(SecretKey key, byte[] iv, EncryptedUpdateTuple encryptedTuple)

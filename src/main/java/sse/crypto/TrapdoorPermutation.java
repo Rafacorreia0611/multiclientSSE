@@ -13,8 +13,6 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Arrays;
 
-import javax.crypto.SecretKey;
-
 import sse.domain.IndexAddress;
 import sse.domain.SearchTokenValue;
 
@@ -120,15 +118,15 @@ public final class TrapdoorPermutation {
         return new SearchTokenValue(i2osp(previousValue, tokenLength));
     }
 
-    public static IndexAddress deriveAddress(SecretKey keywordKey, SearchTokenValue token) {
-        if (keywordKey == null) {
-            throw new IllegalArgumentException("keywordKey cannot be null");
+    public static IndexAddress deriveAddress(byte[] keywordAddressKey, SearchTokenValue token) {
+        if (keywordAddressKey == null) {
+            throw new IllegalArgumentException("keywordAddressKey cannot be null");
         }
         if (token == null) {
             throw new IllegalArgumentException("token cannot be null");
         }
 
-        return new IndexAddress(Prf.prf(keywordKey, token.value()));
+        return new IndexAddress(Prf.prf(keywordAddressKey, token.value()));
     }
 
     private static BigInteger validatedTokenInteger(SearchTokenValue token, BigInteger modulus, int tokenLength) {

@@ -75,6 +75,10 @@ public final class InteractiveClient {
         }
 
         List<String> docIds = client.search(keyword);
+        if (docIds.isEmpty()) {
+            System.out.println("No results for '" + keyword + "'.");
+            return;
+        }
         System.out.println("Results for '" + keyword + "': " + docIds);
     }
 

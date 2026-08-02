@@ -10,16 +10,18 @@ import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public final class UpdateToken implements Serializable {
     private final List<UpdateTokenItem> items;
-    private final EncryptedUpdateCounter encryptedUpdateCounter;
+    private final Map<KeywordToken, KeywordState> updatedKeywordStates;
 
-    public UpdateToken(List<UpdateTokenItem> items, EncryptedUpdateCounter encryptedUpdateCounter) {
-        if (items == null || items.isEmpty() || encryptedUpdateCounter == null) {
-            throw new IllegalArgumentException("items cannot be null or empty and encryptedUpdateCounter cannot be null");
+    public UpdateToken(List<UpdateTokenItem> items, Map<KeywordToken, KeywordState> updatedKeywordStates) {
+        if (items == null || items.isEmpty() || updatedKeywordStates == null || updatedKeywordStates.isEmpty()) {
+            throw new IllegalArgumentException("items and updatedKeywordStates cannot be null or empty");
         }
 
         List<UpdateTokenItem> normalizedItems = new ArrayList<UpdateTokenItem>(items.size());
@@ -31,15 +33,15 @@ public final class UpdateToken implements Serializable {
         }
 
         this.items = Collections.unmodifiableList(normalizedItems);
-        this.encryptedUpdateCounter = encryptedUpdateCounter;
+        this.updatedKeywordStates = Collections.unmodifiableMap(new LinkedHashMap<>(updatedKeywordStates));
     }
 
     public List<UpdateTokenItem> items() {
         return items;
     }
 
-    public EncryptedUpdateCounter encryptedUpdateCounter() {
-        return encryptedUpdateCounter;
+    public Map<KeywordToken, KeywordState> updatedKeywordStates() {
+        return updatedKeywordStates;
     }
 
     public byte[] serialize() {
@@ -76,19 +78,19 @@ public final class UpdateToken implements Serializable {
         }
         UpdateToken that = (UpdateToken) o;
         return Objects.equals(items, that.items) &&
-                Objects.equals(encryptedUpdateCounter, that.encryptedUpdateCounter);
+                Objects.equals(updatedKeywordStates, that.updatedKeywordStates);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(items, encryptedUpdateCounter);
+        return Objects.hash(items, updatedKeywordStates);
     }
 
     @Override
     public String toString() {
         return "UpdateToken[" +
                 "items=" + items +
-                ", encryptedUpdateCounter=" + encryptedUpdateCounter +
+                ", updatedKeywordStates=" + updatedKeywordStates +
                 ']';
     }
 }

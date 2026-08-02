@@ -45,6 +45,6 @@ public final class UpdateService {
             state.invertedIndexStore().put(address, item.encryptedTuple());
             state.keyShareStore().putUpdateTupleShare(address, updateTupleKeyShares[i]);
         }
-        state.setEncryptedUpdateCounter(updateToken.encryptedUpdateCounter());
+        state.keywordStates().putAll(updateToken.updatedKeywordStates());
     }
 }

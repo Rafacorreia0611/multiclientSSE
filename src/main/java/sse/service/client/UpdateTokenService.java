@@ -5,7 +5,9 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.RSAPrivateKey;
+import java.security.interfaces.RSAPublicKey;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -14,14 +16,15 @@ import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 
 import sse.crypto.Prf;
+import sse.crypto.TrapdoorPermutation;
 import sse.crypto.TupleEncryption;
-import sse.crypto.UpdateCounterEncryption;
-import sse.domain.EncryptedUpdateCounter;
 import sse.domain.EncryptedUpdateTuple;
 import sse.domain.IndexAddress;
-import sse.domain.KeywordUpdate;
+import sse.domain.KeywordState;
 import sse.domain.KeywordToken;
+import sse.domain.KeywordUpdate;
 import sse.domain.PreparedUpdateRequest;
+import sse.domain.SearchTokenValue;
 import sse.domain.State;
 import sse.domain.UpdateOp;
 import sse.domain.UpdateToken;
@@ -29,6 +32,9 @@ import sse.domain.UpdateTokenItem;
 import sse.domain.UpdateTuple;
 
 public final class UpdateTokenService {
+
+    private static final String TOKEN_KEY_LABEL = "TokenKey";
+    private static final String ADDRESS_KEY_LABEL = "AddressKey";
 
     private SecretKey generateTupleSecretKey() {
         return TupleEncryption.generateRandomKey();
@@ -56,60 +62,62 @@ public final class UpdateTokenService {
         }
     }
 
-    public PreparedUpdateRequest prepareUpdateRequest(SecretKey tokenGenKey, RSAPrivateKey trapdoorPrivateKey,
+    public PreparedUpdateRequest prepareUpdateRequest(SecretKey masterKey, RSAPrivateKey trapdoorPrivateKey,
                                                       State state, List<KeywordUpdate> updates) {
+        if (masterKey == null || trapdoorPrivateKey == null || state == null) {
+            throw new IllegalArgumentException("masterKey, trapdoorPrivateKey, and state cannot be null");
+        }
         if (updates == null || updates.isEmpty()) {
             throw new IllegalArgumentException("updates cannot be null or empty");
         }
 
-        Map<KeywordToken, Integer> updateCounter;
-        try {
-            updateCounter = UpdateCounterEncryption.decryptUpdateCounter(
-                    updateCounterKey,
-                    state.encryptedUpdateCounter()
-            );
-        } catch (Exception e) {
-            throw new RuntimeException("Error decrypting update counter", e);
-        }
-
+        RSAPublicKey trapdoorPublicKey =
+                TrapdoorPermutation.decodePublicKey(state.encodedTrapdoorPublicKey());
+        byte[] tokenKey = Prf.prf(masterKey, TOKEN_KEY_LABEL);
+        byte[] addressKey = Prf.prf(masterKey, ADDRESS_KEY_LABEL);
+        Map<KeywordToken, KeywordState> workingKeywordStates =
+                new LinkedHashMap<KeywordToken, KeywordState>(state.keywordStates());
+        Map<KeywordToken, KeywordState> updatedKeywordStates =
+                new LinkedHashMap<KeywordToken, KeywordState>();
         List<UpdateTokenItem> items = new ArrayList<UpdateTokenItem>();
         List<SecretKey> tupleKeys = new ArrayList<SecretKey>();
+
         for (KeywordUpdate update : updates) {
             if (update == null) {
                 throw new IllegalArgumentException("updates cannot contain null values");
             }
 
             String keyword = update.keyword();
-            byte[] keywordTokenBytes = Prf.prf(tokenGenKey, keyword);
-            KeywordToken keywordToken = new KeywordToken(keywordTokenBytes);
-
-            int searchCount = state.searchCounter().getOrDefault(keywordToken, 0);
-            int updateCount = updateCounter.getOrDefault(keywordToken, 0);
-            byte[] epochSearchKeyBytes = Prf.prf(tokenGenKey, keyword + ":" + searchCount);
+            KeywordToken keywordToken = new KeywordToken(Prf.prf(tokenKey, keyword));
+            byte[] keywordAddressKey = Prf.prf(addressKey, keyword);
+            KeywordState keywordState = workingKeywordStates.get(keywordToken);
 
             for (String docId : update.docIds()) {
                 SecretKey tupleKey = generateTupleSecretKey();
                 EncryptedUpdateTuple encryptedTuple =
                         generateEncryptedUpdateTuple(docId, update.operation(), tupleKey);
-                updateCount++;
-                IndexAddress address = new IndexAddress(Prf.prf(epochSearchKeyBytes, updateCount));
+
+                SearchTokenValue nextToken;
+                int nextCounter;
+                if (keywordState == null) {
+                    nextToken = TrapdoorPermutation.generateRandomToken(trapdoorPublicKey);
+                    nextCounter = 1;
+                } else {
+                    nextToken = TrapdoorPermutation.privateStep(keywordState.currentToken(), trapdoorPrivateKey);
+                    nextCounter = keywordState.counter() + 1;
+                }
+
+                IndexAddress address = TrapdoorPermutation.deriveAddress(keywordAddressKey, nextToken);
                 items.add(new UpdateTokenItem(address, encryptedTuple));
                 tupleKeys.add(tupleKey);
+
+                keywordState = new KeywordState(nextToken, nextCounter, false);
+                workingKeywordStates.put(keywordToken, keywordState);
             }
 
-            updateCounter.put(keywordToken, updateCount);
+            updatedKeywordStates.put(keywordToken, keywordState);
         }
 
-        EncryptedUpdateCounter updatedEncryptedUpdateCounter;
-        try {
-            updatedEncryptedUpdateCounter = UpdateCounterEncryption.encryptUpdateCounter(
-                    updateCounterKey,
-                    UpdateCounterEncryption.generateIv(),
-                    updateCounter
-            );
-        } catch (Exception e) {
-            throw new RuntimeException("Error encrypting update counter", e);
-        }
-        return new PreparedUpdateRequest(new UpdateToken(items, updatedEncryptedUpdateCounter), tupleKeys);
+        return new PreparedUpdateRequest(new UpdateToken(items, updatedKeywordStates), tupleKeys);
     }
 }

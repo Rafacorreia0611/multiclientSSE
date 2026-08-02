@@ -1,58 +1,44 @@
 package sse.service.server;
 
-import java.util.List;
+import java.util.ArrayDeque;
+import java.util.Deque;
 
-import sse.crypto.Prf;
+import sse.crypto.TrapdoorPermutation;
 import sse.domain.EncryptedUpdateTuple;
-import sse.domain.EpochSearchKey;
 import sse.domain.IndexAddress;
-import sse.domain.KeywordToken;
 import sse.domain.SearchResponseData;
 import sse.domain.SearchToken;
+import sse.domain.SearchTokenValue;
 import sse.state.SseServerState;
 import vss.secretsharing.VerifiableShare;
 
 public final class SearchService {
 
     public SearchResponseData search(SseServerState state, SearchToken searchToken) {
-        EpochSearchKey epochSearchKey = searchToken.epochSearchKey();
-        KeywordToken keywordToken = searchToken.keywordToken();
-
-        if (!state.searchCounter().containsKey(keywordToken)) {
-            state.searchCounter().put(keywordToken, 0);
+        if (state == null || searchToken == null) {
+            throw new IllegalArgumentException("state and searchToken cannot be null");
         }
+
         SearchResponseData result = new SearchResponseData();
-        List<IndexAddress> cachedAddresses = state.searchCache().cachedAddressesFor(keywordToken);
-        if (!cachedAddresses.isEmpty()) {
-            for (IndexAddress address : cachedAddresses) {
-                EncryptedUpdateTuple update = state.invertedIndexStore().get(address);
-                VerifiableShare updateTupleKey = state.keyShareStore().getUpdateTupleShare(address);
-                if (update != null && updateTupleKey != null) {
-                    result.add(update, updateTupleKey);
-                }
-            }
-        }
-        if (searchToken.searchCounter() != state.searchCounter().get(keywordToken)) {
-            return result;
-        }
-
-        byte[] epochSearchKeyBytes = epochSearchKey.value();
-        int currentUpdateCounter = searchToken.currentUpdateCounter();
-        int nextIndex = state.searchCache().nextSearchIndexFor(keywordToken);
-        for (int i = nextIndex; i <= currentUpdateCounter; i++) {
-            byte[] address = Prf.prf(epochSearchKeyBytes, i);
-            IndexAddress indexAddress = new IndexAddress(address);
-            EncryptedUpdateTuple update = state.invertedIndexStore().get(indexAddress);
+        Deque<EncryptedUpdateTuple> encryptedTuples = new ArrayDeque<EncryptedUpdateTuple>();
+        Deque<VerifiableShare> updateTupleKeys = new ArrayDeque<VerifiableShare>();
+        SearchTokenValue currentToken = searchToken.currentToken();
+        byte[] keywordAddressKey = searchToken.keywordAddressKey();
+        for (int i = 0; i < searchToken.counter(); i++) {
+            IndexAddress address = TrapdoorPermutation.deriveAddress(keywordAddressKey, currentToken);
+            EncryptedUpdateTuple update = state.invertedIndexStore().get(address);
             if (update != null) {
-                VerifiableShare updateTupleKey = state.keyShareStore().getUpdateTupleShare(indexAddress);
+                VerifiableShare updateTupleKey = state.keyShareStore().getUpdateTupleShare(address);
                 if (updateTupleKey != null) {
-                    result.add(update, updateTupleKey);
-                    state.searchCache().cacheAddress(keywordToken, indexAddress);
+                    encryptedTuples.addFirst(update);
+                    updateTupleKeys.addFirst(updateTupleKey);
                 }
             }
+            currentToken = TrapdoorPermutation.publicStep(currentToken, state.trapdoorPublicKey());
         }
-        state.searchCache().advanceNextSearchIndex(keywordToken, currentUpdateCounter + 1);
-        state.searchCounter().put(keywordToken, state.searchCounter().get(keywordToken) + 1);
+        while (!encryptedTuples.isEmpty()) {
+            result.add(encryptedTuples.removeFirst(), updateTupleKeys.removeFirst());
+        }
         return result;
     }
 }

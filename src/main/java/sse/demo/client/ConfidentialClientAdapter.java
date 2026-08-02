@@ -55,7 +55,7 @@ public final class ConfidentialClientAdapter {
                 RequestType.INIT_STATE,
                 TrapdoorPermutation.encodePublicKey(initializationMaterial.trapdoorPublicKey()),
                 new byte[][] {
-                        initializationMaterial.tokenGenKey().getEncoded(),
+                        initializationMaterial.masterKey().getEncoded(),
                         TrapdoorPermutation.encodePrivateKey(initializationMaterial.trapdoorPrivateKey())
                 }
         );
@@ -98,11 +98,11 @@ public final class ConfidentialClientAdapter {
                 if (response.getConfidentialData() == null || response.getConfidentialData().length < 2) {
                     throw new RuntimeException("State keys missing from response");
                 }
-                SecretKey tokenGenKey = new SecretKeySpec(response.getConfidentialData()[0], Prf.ALGORITHM);
+                SecretKey masterKey = new SecretKeySpec(response.getConfidentialData()[0], Prf.ALGORITHM);
                 RSAPrivateKey trapdoorPrivateKey = TrapdoorPermutation.decodePrivateKey(response.getConfidentialData()[1]);
                 return new StateRequestResult(
                         state,
-                        tokenGenKey,
+                        masterKey,
                         trapdoorPrivateKey
                 );
             } catch (SecretSharingException e) {
@@ -255,12 +255,12 @@ public final class ConfidentialClientAdapter {
 
     public static final class StateRequestResult {
         private final State state;
-        private final SecretKey tokenGenKey;
+        private final SecretKey masterKey;
         private final RSAPrivateKey trapdoorPrivateKey;
 
-        private StateRequestResult(State state, SecretKey tokenGenKey, RSAPrivateKey trapdoorPrivateKey) {
+        private StateRequestResult(State state, SecretKey masterKey, RSAPrivateKey trapdoorPrivateKey) {
             this.state = state;
-            this.tokenGenKey = tokenGenKey;
+            this.masterKey = masterKey;
             this.trapdoorPrivateKey = trapdoorPrivateKey;
         }
 
@@ -268,8 +268,8 @@ public final class ConfidentialClientAdapter {
             return state;
         }
 
-        public SecretKey tokenGenKey() {
-            return tokenGenKey;
+        public SecretKey masterKey() {
+            return masterKey;
         }
 
         public RSAPrivateKey trapdoorPrivateKey() {

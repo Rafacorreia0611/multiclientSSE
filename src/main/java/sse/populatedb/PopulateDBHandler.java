@@ -5,7 +5,9 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.security.interfaces.RSAPrivateKey;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import javax.crypto.SecretKey;
 
@@ -13,6 +15,8 @@ import sse.dataset.KeywordDocIdsEntry;
 import sse.dataset.KeywordDocIdsReader;
 import sse.demo.client.ConfidentialClientAdapter;
 import sse.domain.InitializationMaterial;
+import sse.domain.KeywordState;
+import sse.domain.KeywordToken;
 import sse.domain.KeywordUpdate;
 import sse.domain.PreparedUpdateRequest;
 import sse.domain.State;
@@ -47,28 +51,30 @@ public final class PopulateDBHandler {
     }
 
     public PopulationSummary populate(Path inputPath) {
-        InitializationMaterial initializationMaterial = sseClientFacade.generateInitialStateData();
-        if (adapter.sendInitializeStateRequest(initializationMaterial)) {
-            System.out.println("State initialized.");
-        } else {
-            System.out.println("State was already initialized.");
-        }
-
-        ConfidentialClientAdapter.StateRequestResult stateRequest = adapter.requestSetupState();
-        State currentState = stateRequest.state();
-        SecretKey tokenGenKey = stateRequest.tokenGenKey();
-        RSAPrivateKey trapdoorPrivateKey = stateRequest.trapdoorPrivateKey();
-
+        boolean setupStarted = false;
         boolean completed = false;
-        long processedKeywords = 0L;
-        long processedDocIds = 0L;
-        long sentBatches = 0L;
-        long startTimeNanos = System.nanoTime();
-        long lastProgressLogNanos = startTimeNanos;
-        List<KeywordUpdate> pendingUpdates = new ArrayList<KeywordUpdate>();
-        int pendingDocIds = 0;
-
         try (BufferedReader reader = datasetReader.openReader(inputPath)) {
+            InitializationMaterial initializationMaterial = sseClientFacade.generateInitialStateData();
+            if (adapter.sendInitializeStateRequest(initializationMaterial)) {
+                System.out.println("State initialized.");
+            } else {
+                System.out.println("State was already initialized.");
+            }
+
+            ConfidentialClientAdapter.StateRequestResult stateRequest = adapter.requestSetupState();
+            setupStarted = true;
+            State currentState = stateRequest.state();
+            SecretKey masterKey = stateRequest.masterKey();
+            RSAPrivateKey trapdoorPrivateKey = stateRequest.trapdoorPrivateKey();
+
+            long processedKeywords = 0L;
+            long processedDocIds = 0L;
+            long sentBatches = 0L;
+            long startTimeNanos = System.nanoTime();
+            long lastProgressLogNanos = startTimeNanos;
+            List<KeywordUpdate> pendingUpdates = new ArrayList<KeywordUpdate>();
+            int pendingDocIds = 0;
+
             String line;
             long lineNumber = 0L;
 
@@ -97,7 +103,7 @@ public final class PopulateDBHandler {
                     if (pendingDocIds == batchSize) {
                         SentBatch sentBatch = sendPendingBatch(
                                 pendingUpdates,
-                                tokenGenKey,
+                                masterKey,
                                 trapdoorPrivateKey,
                                 currentState
                         );
@@ -121,7 +127,7 @@ public final class PopulateDBHandler {
             if (pendingDocIds > 0) {
                 SentBatch sentBatch = sendPendingBatch(
                         pendingUpdates,
-                        tokenGenKey,
+                        masterKey,
                         trapdoorPrivateKey,
                         currentState
                 );
@@ -140,16 +146,16 @@ public final class PopulateDBHandler {
         } catch (IOException e) {
             throw new IllegalStateException("Failed while reading NDJSON input " + inputPath.toAbsolutePath(), e);
         } finally {
-            if (!completed) {
+            if (setupStarted && !completed) {
                 attemptSetupAbort();
             }
         }
     }
 
     private SentBatch sendPendingBatch(List<KeywordUpdate> pendingUpdates,
-                                       SecretKey tokenGenKey, RSAPrivateKey trapdoorPrivateKey, State currentState) {
+                                       SecretKey masterKey, RSAPrivateKey trapdoorPrivateKey, State currentState) {
         PreparedUpdateRequest preparedUpdateRequest = sseClientFacade.prepareUpdateRequest(
-                tokenGenKey,
+                masterKey,
                 trapdoorPrivateKey,
                 currentState,
                 pendingUpdates
@@ -167,8 +173,11 @@ public final class PopulateDBHandler {
             throw new IllegalStateException("Server rejected update batch");
         }
 
+        Map<KeywordToken, KeywordState> nextKeywordStates =
+                new LinkedHashMap<KeywordToken, KeywordState>(currentState.keywordStates());
+        nextKeywordStates.putAll(preparedUpdateRequest.updateToken().updatedKeywordStates());
         return new SentBatch(
-                new State(currentState.searchCounter(), preparedUpdateRequest.updateToken().encryptedUpdateCounter()),
+                new State(nextKeywordStates, currentState.encodedTrapdoorPublicKey()),
                 preparedUpdateRequest.updateToken().items().size()
         );
     }

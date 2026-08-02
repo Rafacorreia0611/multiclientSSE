@@ -8,40 +8,34 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutput;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Objects;
 
 public final class SearchToken implements Serializable {
-    private final EpochSearchKey epochSearchKey;
-    private final KeywordToken keywordToken;
-    private final int searchCounter;
-    private final int currentUpdateCounter;
+    private final byte[] keywordAddressKey;
+    private final SearchTokenValue currentToken;
+    private final int counter;
 
-    public SearchToken(EpochSearchKey epochSearchKey, KeywordToken keywordToken, int searchCounter,
-                       int currentUpdateCounter) {
-        if (epochSearchKey == null || keywordToken == null || searchCounter < 0 || currentUpdateCounter < 0) {
+    public SearchToken(byte[] keywordAddressKey, SearchTokenValue currentToken, int counter) {
+        if (keywordAddressKey == null || currentToken == null || counter <= 0) {
             throw new IllegalArgumentException(
-                    "epochSearchKey and keywordToken cannot be null and counters cannot be negative");
+                    "keywordAddressKey and currentToken cannot be null and counter must be greater than zero");
         }
-        this.epochSearchKey = epochSearchKey;
-        this.keywordToken = keywordToken;
-        this.searchCounter = searchCounter;
-        this.currentUpdateCounter = currentUpdateCounter;
+        this.keywordAddressKey = keywordAddressKey.clone();
+        this.currentToken = currentToken;
+        this.counter = counter;
     }
 
-    public EpochSearchKey epochSearchKey() {
-        return epochSearchKey;
+    public byte[] keywordAddressKey() {
+        return keywordAddressKey.clone();
     }
 
-    public KeywordToken keywordToken() {
-        return keywordToken;
+    public SearchTokenValue currentToken() {
+        return currentToken;
     }
 
-    public int searchCounter() {
-        return searchCounter;
-    }
-
-    public int currentUpdateCounter() {
-        return currentUpdateCounter;
+    public int counter() {
+        return counter;
     }
 
     public byte[] serialize() {
@@ -77,24 +71,24 @@ public final class SearchToken implements Serializable {
             return false;
         }
         SearchToken that = (SearchToken) o;
-        return searchCounter == that.searchCounter &&
-                currentUpdateCounter == that.currentUpdateCounter &&
-                Objects.equals(epochSearchKey, that.epochSearchKey) &&
-                Objects.equals(keywordToken, that.keywordToken);
+        return counter == that.counter
+                && Arrays.equals(keywordAddressKey, that.keywordAddressKey)
+                && Objects.equals(currentToken, that.currentToken);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(epochSearchKey, keywordToken, searchCounter, currentUpdateCounter);
+        int result = Objects.hash(currentToken, counter);
+        result = 31 * result + Arrays.hashCode(keywordAddressKey);
+        return result;
     }
 
     @Override
     public String toString() {
         return "SearchToken[" +
-                "epochSearchKey=" + epochSearchKey +
-                ", keywordToken=" + keywordToken +
-                ", searchCounter=" + searchCounter +
-                ", currentUpdateCounter=" + currentUpdateCounter +
+                "keywordAddressKeyLength=" + keywordAddressKey.length +
+                ", currentToken=" + currentToken +
+                ", counter=" + counter +
                 ']';
     }
 }

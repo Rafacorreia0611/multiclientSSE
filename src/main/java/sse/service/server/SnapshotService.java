@@ -21,26 +21,24 @@ public final class SnapshotService {
                 state.activeClientId(),
                 state.blockedStateRequestsWhileActive(),
                 state.setupInProgress(),
-                state.searchCache().snapshotCachedAddresses(),
-                state.searchCache().snapshotNextSearchIndex(),
                 state.invertedIndexStore().snapshot(),
                 state.keyShareStore().snapshotUpdateTupleShareOrder(),
-                state.keyShareStore().hasTokenGenKeyShare(),
+                state.keyShareStore().hasMasterKeyShare(),
                 state.keyShareStore().hasTrapdoorPrivateKeyShare()
         );
     }
 
     public VerifiableShare[] getSnapshotShares(SseServerState state, List<IndexAddress> updateTupleShareOrder,
-                                               boolean includeTokenGenKeyShare,
+                                               boolean includeMasterKeyShare,
                                                boolean includeTrapdoorPrivateKeyShare) {
         return state.keyShareStore().sharesInOrder(
                 updateTupleShareOrder,
-                includeTokenGenKeyShare,
+                includeMasterKeyShare,
                 includeTrapdoorPrivateKeyShare
         );
     }
 
-    public void installSnapshot(SseServerState state, SsePlainSnapshotData snapshotData, VerifiableShare tokenGenKeyShare,
+    public void installSnapshot(SseServerState state, SsePlainSnapshotData snapshotData, VerifiableShare masterKeyShare,
                                 VerifiableShare trapdoorPrivateKeyShare,
                                 Map<IndexAddress, VerifiableShare> updateTupleShares) {
         if (snapshotData == null) {
@@ -53,10 +51,9 @@ public final class SnapshotService {
         state.setActiveClientId(snapshotData.activeClientId());
         state.setBlockedStateRequestsWhileActive(snapshotData.blockedStateRequestsWhileActive());
         state.setSetupInProgress(snapshotData.setupInProgress());
-        state.searchCache().restore(snapshotData.dbCache(), snapshotData.nextSearchIndex());
         state.invertedIndexStore().restore(snapshotData.invertedIndex());
         state.keyShareStore().restoreUpdateTupleShares(updateTupleShares);
-        state.keyShareStore().setTokenGenKeyShare(tokenGenKeyShare);
+        state.keyShareStore().setMasterKeyShare(masterKeyShare);
         state.keyShareStore().setTrapdoorPrivateKeyShare(trapdoorPrivateKeyShare);
     }
 }

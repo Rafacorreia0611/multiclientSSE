@@ -11,12 +11,12 @@ import vss.secretsharing.VerifiableShare;
 public final class KeyShareStore {
 
     private Map<IndexAddress, VerifiableShare> updateTupleShares;
-    private VerifiableShare tokenGenKeyShare;
+    private VerifiableShare masterKeyShare;
     private VerifiableShare trapdoorPrivateKeyShare;
 
     public KeyShareStore() {
         this.updateTupleShares = new LinkedHashMap<>();
-        this.tokenGenKeyShare = null;
+        this.masterKeyShare = null;
         this.trapdoorPrivateKeyShare = null;
     }
 
@@ -28,24 +28,16 @@ public final class KeyShareStore {
         updateTupleShares.put(address, share);
     }
 
-    public boolean initializeTokenGenKeyShare(VerifiableShare share) {
-        if (tokenGenKeyShare != null) {
-            return false;
-        }
-        tokenGenKeyShare = share;
-        return true;
+    public VerifiableShare masterKeyShare() {
+        return masterKeyShare;
     }
 
-    public VerifiableShare tokenGenKeyShare() {
-        return tokenGenKeyShare;
+    public boolean hasMasterKeyShare() {
+        return masterKeyShare != null;
     }
 
-    public boolean hasTokenGenKeyShare() {
-        return tokenGenKeyShare != null;
-    }
-
-    public void setTokenGenKeyShare(VerifiableShare share) {
-        tokenGenKeyShare = share;
+    public void setMasterKeyShare(VerifiableShare share) {
+        masterKeyShare = share;
     }
 
     public VerifiableShare trapdoorPrivateKeyShare() {
@@ -64,10 +56,10 @@ public final class KeyShareStore {
         return new ArrayList<>(updateTupleShares.keySet());
     }
 
-    public VerifiableShare[] sharesInOrder(List<IndexAddress> updateTupleShareOrder, boolean includeTokenGenKeyShare,
+    public VerifiableShare[] sharesInOrder(List<IndexAddress> updateTupleShareOrder, boolean includeMasterKeyShare,
                                            boolean includeTrapdoorPrivateKeyShare) {
         int size = updateTupleShareOrder.size()
-                + (includeTokenGenKeyShare ? 1 : 0)
+                + (includeMasterKeyShare ? 1 : 0)
                 + (includeTrapdoorPrivateKeyShare ? 1 : 0);
         if (size == 0) {
             return new VerifiableShare[0];
@@ -75,8 +67,8 @@ public final class KeyShareStore {
 
         VerifiableShare[] shares = new VerifiableShare[size];
         int index = 0;
-        if (includeTokenGenKeyShare) {
-            shares[index++] = tokenGenKeyShare;
+        if (includeMasterKeyShare) {
+            shares[index++] = masterKeyShare;
         }
         if (includeTrapdoorPrivateKeyShare) {
             shares[index++] = trapdoorPrivateKeyShare;

@@ -1,6 +1,7 @@
 package sse.populatedb;
 
 import java.nio.file.Path;
+import java.nio.file.Files;
 import java.nio.file.Paths;
 
 import sse.demo.client.ConfidentialClientAdapter;
@@ -35,6 +36,7 @@ public final class PopulateDB {
                     throw new IllegalArgumentException("Unknown argument: " + arg + ". " + USAGE);
             }
         }
+        validateInputPath(inputPath);
 
         ConfidentialClientAdapter adapter = null;
         try {
@@ -51,6 +53,15 @@ public final class PopulateDB {
             if (adapter != null) {
                 adapter.close();
             }
+        }
+    }
+
+    private static void validateInputPath(Path inputPath) {
+        if (inputPath == null) {
+            throw new IllegalArgumentException("input path cannot be null");
+        }
+        if (!Files.exists(inputPath) || !Files.isRegularFile(inputPath)) {
+            throw new IllegalArgumentException("NDJSON file does not exist: " + inputPath.toAbsolutePath());
         }
     }
 
