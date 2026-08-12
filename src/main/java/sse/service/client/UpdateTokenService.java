@@ -18,18 +18,18 @@ import javax.crypto.SecretKey;
 import sse.crypto.Prf;
 import sse.crypto.TrapdoorPermutation;
 import sse.crypto.TupleEncryption;
-import sse.domain.EncryptedUpdateTuple;
-import sse.domain.IndexAddress;
-import sse.domain.KeywordState;
-import sse.domain.KeywordToken;
-import sse.domain.KeywordUpdate;
-import sse.domain.PreparedUpdateRequest;
-import sse.domain.SearchTokenValue;
-import sse.domain.State;
-import sse.domain.UpdateOp;
-import sse.domain.UpdateToken;
-import sse.domain.UpdateTokenItem;
-import sse.domain.UpdateTuple;
+import sse.domain.update.EncryptedUpdateTuple;
+import sse.domain.id.IndexAddress;
+import sse.domain.state.KeywordState;
+import sse.domain.id.KeywordToken;
+import sse.domain.update.KeywordUpdate;
+import sse.domain.update.PreparedUpdateRequest;
+import sse.domain.id.SearchTokenValue;
+import sse.domain.state.State;
+import sse.domain.update.UpdateOp;
+import sse.domain.update.UpdateToken;
+import sse.domain.update.UpdateTokenItem;
+import sse.domain.update.UpdateTuple;
 
 public final class UpdateTokenService {
 

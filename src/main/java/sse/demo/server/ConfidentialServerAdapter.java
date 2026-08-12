@@ -12,8 +12,8 @@ import confidential.facade.server.ConfidentialSingleExecutable;
 import confidential.statemanagement.ConfidentialSnapshot;
 import sse.demo.messages.RequestType;
 import sse.demo.messages.ResponseStatus;
-import sse.domain.SearchToken;
-import sse.domain.UpdateToken;
+import sse.domain.search.SearchToken;
+import sse.domain.update.UpdateToken;
 import vss.secretsharing.VerifiableShare;
 
 public final class ConfidentialServerAdapter implements ConfidentialSingleExecutable {

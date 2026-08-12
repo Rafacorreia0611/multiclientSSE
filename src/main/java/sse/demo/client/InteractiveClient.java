@@ -7,8 +7,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import sse.domain.KeywordUpdate;
-import sse.domain.UpdateOp;
+import sse.domain.update.KeywordUpdate;
+import sse.domain.update.UpdateOp;
 
 public final class InteractiveClient {
 

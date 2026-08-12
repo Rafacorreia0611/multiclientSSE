@@ -1,8 +1,9 @@
-package sse.domain;
+package sse.domain.search;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import sse.domain.update.EncryptedUpdateTuple;
 import vss.secretsharing.VerifiableShare;
 
 public final class SearchResponseData {

@@ -13,8 +13,8 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Arrays;
 
-import sse.domain.IndexAddress;
-import sse.domain.SearchTokenValue;
+import sse.domain.id.IndexAddress;
+import sse.domain.id.SearchTokenValue;
 
 public final class TrapdoorPermutation {
 

@@ -1,4 +1,4 @@
-package sse.domain;
+package sse.domain.update;
 
 import java.util.ArrayList;
 import java.util.Collections;

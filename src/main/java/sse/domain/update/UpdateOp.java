@@ -1,4 +1,4 @@
-package sse.domain;
+package sse.domain.update;
 
 public enum UpdateOp {
     ADD,

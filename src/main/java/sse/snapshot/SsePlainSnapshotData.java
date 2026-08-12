@@ -14,10 +14,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import sse.domain.EncryptedUpdateTuple;
-import sse.domain.IndexAddress;
-import sse.domain.KeywordState;
-import sse.domain.KeywordToken;
+import sse.domain.update.EncryptedUpdateTuple;
+import sse.domain.id.IndexAddress;
+import sse.domain.state.KeywordState;
+import sse.domain.id.KeywordToken;
 import vss.secretsharing.VerifiableShare;
 
 public final class SsePlainSnapshotData implements Serializable {

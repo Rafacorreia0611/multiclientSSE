@@ -1,4 +1,4 @@
-package sse.domain;
+package sse.domain.id;
 
 public final class SearchTokenValue extends BinaryId {
 

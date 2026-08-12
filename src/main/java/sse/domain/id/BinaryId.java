@@ -1,4 +1,4 @@
-package sse.domain;
+package sse.domain.id;
 
 import java.io.Serializable;
 import java.util.Arrays;

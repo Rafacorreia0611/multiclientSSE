@@ -1,4 +1,4 @@
-package sse.domain;
+package sse.domain.search;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -10,6 +10,8 @@ import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Objects;
+
+import sse.domain.id.SearchTokenValue;
 
 public final class SearchToken implements Serializable {
     private final byte[] keywordAddressKey;

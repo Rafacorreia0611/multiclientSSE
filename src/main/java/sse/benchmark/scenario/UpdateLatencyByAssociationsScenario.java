@@ -18,8 +18,8 @@ import sse.benchmark.BenchmarkResultWriter;
 import sse.benchmark.BenchmarkScenario;
 import sse.demo.client.ConfidentialClientAdapter;
 import sse.demo.client.SseClientHandler;
-import sse.domain.KeywordUpdate;
-import sse.domain.UpdateOp;
+import sse.domain.update.KeywordUpdate;
+import sse.domain.update.UpdateOp;
 import vss.facade.SecretSharingException;
 
 public final class UpdateLatencyByAssociationsScenario implements BenchmarkScenario {

@@ -1,4 +1,4 @@
-package sse.domain;
+package sse.domain.update;
 
 import java.io.Serializable;
 import java.util.Objects;

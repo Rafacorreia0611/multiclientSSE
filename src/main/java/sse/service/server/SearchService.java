@@ -4,11 +4,11 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 
 import sse.crypto.TrapdoorPermutation;
-import sse.domain.EncryptedUpdateTuple;
-import sse.domain.IndexAddress;
-import sse.domain.SearchResponseData;
-import sse.domain.SearchToken;
-import sse.domain.SearchTokenValue;
+import sse.domain.update.EncryptedUpdateTuple;
+import sse.domain.id.IndexAddress;
+import sse.domain.search.SearchResponseData;
+import sse.domain.search.SearchToken;
+import sse.domain.id.SearchTokenValue;
 import sse.state.SseServerState;
 import vss.secretsharing.VerifiableShare;
 

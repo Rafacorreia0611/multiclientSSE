@@ -3,9 +3,9 @@ package sse.service.server;
 import java.util.HashSet;
 import java.util.Set;
 
-import sse.domain.IndexAddress;
-import sse.domain.UpdateToken;
-import sse.domain.UpdateTokenItem;
+import sse.domain.id.IndexAddress;
+import sse.domain.update.UpdateToken;
+import sse.domain.update.UpdateTokenItem;
 import sse.state.SseServerState;
 import vss.secretsharing.VerifiableShare;
 

@@ -3,8 +3,8 @@ package sse.state;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import sse.domain.EncryptedUpdateTuple;
-import sse.domain.IndexAddress;
+import sse.domain.update.EncryptedUpdateTuple;
+import sse.domain.id.IndexAddress;
 
 public final class InvertedIndexStore {
 

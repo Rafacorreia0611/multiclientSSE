@@ -4,8 +4,8 @@ import java.security.interfaces.RSAPublicKey;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import sse.domain.KeywordState;
-import sse.domain.KeywordToken;
+import sse.domain.state.KeywordState;
+import sse.domain.id.KeywordToken;
 
 public final class SseServerState {
 

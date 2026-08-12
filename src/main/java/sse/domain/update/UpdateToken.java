@@ -1,4 +1,4 @@
-package sse.domain;
+package sse.domain.update;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -14,6 +14,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import sse.domain.id.KeywordToken;
+import sse.domain.state.KeywordState;
 
 public final class UpdateToken implements Serializable {
     private final List<UpdateTokenItem> items;

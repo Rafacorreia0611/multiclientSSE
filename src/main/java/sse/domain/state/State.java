@@ -1,4 +1,4 @@
-package sse.domain;
+package sse.domain.state;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -13,6 +13,8 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+
+import sse.domain.id.KeywordToken;
 
 public final class State implements Serializable {
     private final Map<KeywordToken, KeywordState> keywordStates;

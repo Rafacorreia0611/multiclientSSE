@@ -5,11 +5,11 @@ import java.util.List;
 import java.security.interfaces.RSAPublicKey;
 
 import sse.crypto.TrapdoorPermutation;
-import sse.domain.IndexAddress;
-import sse.domain.SearchResponseData;
-import sse.domain.SearchToken;
-import sse.domain.State;
-import sse.domain.UpdateToken;
+import sse.domain.id.IndexAddress;
+import sse.domain.search.SearchResponseData;
+import sse.domain.search.SearchToken;
+import sse.domain.state.State;
+import sse.domain.update.UpdateToken;
 import sse.snapshot.SsePlainSnapshotData;
 import sse.service.server.SearchService;
 import sse.service.server.SnapshotService;

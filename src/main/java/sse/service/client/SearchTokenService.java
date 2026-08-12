@@ -16,12 +16,12 @@ import javax.crypto.SecretKey;
 
 import sse.crypto.Prf;
 import sse.crypto.TupleEncryption;
-import sse.domain.EncryptedUpdateTuple;
-import sse.domain.KeywordState;
-import sse.domain.KeywordToken;
-import sse.domain.SearchToken;
-import sse.domain.State;
-import sse.domain.UpdateTuple;
+import sse.domain.update.EncryptedUpdateTuple;
+import sse.domain.state.KeywordState;
+import sse.domain.id.KeywordToken;
+import sse.domain.search.SearchToken;
+import sse.domain.state.State;
+import sse.domain.update.UpdateTuple;
 
 public final class SearchTokenService {
 

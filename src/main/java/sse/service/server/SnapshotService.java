@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 import sse.crypto.TrapdoorPermutation;
-import sse.domain.IndexAddress;
+import sse.domain.id.IndexAddress;
 import sse.snapshot.SsePlainSnapshotData;
 import sse.state.SseServerState;
 import vss.secretsharing.VerifiableShare;
