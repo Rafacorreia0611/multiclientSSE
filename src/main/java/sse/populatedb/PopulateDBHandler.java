@@ -14,14 +14,15 @@ import javax.crypto.SecretKey;
 import sse.dataset.KeywordDocIdsEntry;
 import sse.dataset.KeywordDocIdsReader;
 import sse.demo.client.ConfidentialClientAdapter;
-import sse.domain.InitializationMaterial;
-import sse.domain.KeywordState;
-import sse.domain.KeywordToken;
-import sse.domain.KeywordUpdate;
-import sse.domain.PreparedUpdateRequest;
-import sse.domain.State;
-import sse.domain.UpdateOp;
+import sse.domain.setup.InitializationMaterial;
+import sse.domain.state.KeywordState;
+import sse.domain.id.KeywordToken;
+import sse.domain.update.KeywordUpdate;
+import sse.domain.update.PreparedUpdateRequest;
+import sse.domain.state.State;
+import sse.domain.update.UpdateOp;
 import sse.facade.SseClientFacade;
+import sse.vocabulary.VocabularyLoader;
 
 public final class PopulateDBHandler {
 
@@ -32,33 +33,46 @@ public final class PopulateDBHandler {
     private final SseClientFacade sseClientFacade;
     private final KeywordDocIdsReader datasetReader;
     private final int batchSize;
+    private final Path vocabularyPath;
 
     public PopulateDBHandler(ConfidentialClientAdapter adapter) {
         this(adapter, DEFAULT_BATCH_SIZE);
     }
 
     public PopulateDBHandler(ConfidentialClientAdapter adapter, int batchSize) {
+        this(adapter, batchSize, VocabularyLoader.DEFAULT_VOCABULARY_PATH);
+    }
+
+    public PopulateDBHandler(ConfidentialClientAdapter adapter, int batchSize, Path vocabularyPath) {
         if (adapter == null) {
             throw new IllegalArgumentException("adapter cannot be null");
         }
         if (batchSize <= 0) {
             throw new IllegalArgumentException("batchSize must be greater than zero");
         }
+        if (vocabularyPath == null) {
+            throw new IllegalArgumentException("vocabularyPath cannot be null");
+        }
         this.adapter = adapter;
         this.sseClientFacade = new SseClientFacade();
         this.datasetReader = new KeywordDocIdsReader();
         this.batchSize = batchSize;
+        this.vocabularyPath = vocabularyPath;
     }
 
     public PopulationSummary populate(Path inputPath) {
         boolean setupStarted = false;
         boolean completed = false;
         try (BufferedReader reader = datasetReader.openReader(inputPath)) {
-            InitializationMaterial initializationMaterial = sseClientFacade.generateInitialStateData();
-            if (adapter.sendInitializeStateRequest(initializationMaterial)) {
-                System.out.println("State initialized.");
+            if (adapter.isInitialized()) {
+                System.out.println("State already initialized.");
             } else {
-                System.out.println("State was already initialized.");
+                InitializationMaterial initializationMaterial = sseClientFacade.generateInitialStateData(vocabularyPath);
+                if (adapter.sendInitializeStateRequest(initializationMaterial)) {
+                    System.out.println("State initialized.");
+                } else {
+                    System.out.println("State was initialized by another client.");
+                }
             }
 
             ConfidentialClientAdapter.StateRequestResult stateRequest = adapter.requestSetupState();
@@ -177,7 +191,11 @@ public final class PopulateDBHandler {
                 new LinkedHashMap<KeywordToken, KeywordState>(currentState.keywordStates());
         nextKeywordStates.putAll(preparedUpdateRequest.updateToken().updatedKeywordStates());
         return new SentBatch(
-                new State(nextKeywordStates, currentState.encodedTrapdoorPublicKey()),
+                new State(
+                        nextKeywordStates,
+                        currentState.encodedTrapdoorPublicKey(),
+                        currentState.encryptedKeywordAddressMap()
+                ),
                 preparedUpdateRequest.updateToken().items().size()
         );
     }

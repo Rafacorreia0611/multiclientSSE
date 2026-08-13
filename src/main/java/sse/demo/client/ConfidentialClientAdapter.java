@@ -23,11 +23,12 @@ import sse.crypto.Prf;
 import sse.crypto.TrapdoorPermutation;
 import sse.demo.messages.RequestType;
 import sse.demo.messages.ResponseStatus;
-import sse.domain.EncryptedUpdateTuple;
-import sse.domain.InitializationMaterial;
-import sse.domain.SearchToken;
-import sse.domain.State;
-import sse.domain.UpdateToken;
+import sse.domain.update.EncryptedUpdateTuple;
+import sse.domain.setup.InitialStatePayload;
+import sse.domain.setup.InitializationMaterial;
+import sse.domain.search.SearchToken;
+import sse.domain.state.State;
+import sse.domain.update.UpdateToken;
 import vss.facade.SecretSharingException;
 
 public final class ConfidentialClientAdapter {
@@ -53,12 +54,33 @@ public final class ConfidentialClientAdapter {
 
         return sendStatusOnlyRequest(
                 RequestType.INIT_STATE,
-                TrapdoorPermutation.encodePublicKey(initializationMaterial.trapdoorPublicKey()),
+                new InitialStatePayload(
+                        TrapdoorPermutation.encodePublicKey(initializationMaterial.trapdoorPublicKey()),
+                        initializationMaterial.encryptedKeywordAddressMap()
+                ).serialize(),
                 new byte[][] {
                         initializationMaterial.masterKey().getEncoded(),
                         TrapdoorPermutation.encodePrivateKey(initializationMaterial.trapdoorPrivateKey())
                 }
         );
+    }
+
+    public boolean isInitialized() {
+        try {
+            Response response = service.invokeOrdered(serialize(RequestType.IS_INITIALIZED, null));
+            ensureResponsePresent(response, "IS_INITIALIZED request");
+            byte[] plainResponse = response.getPainData();
+            if (plainResponse == null || plainResponse.length < 2) {
+                throw new RuntimeException("Initialization status response missing from server");
+            }
+            ResponseStatus responseStatus = ResponseStatus.getResponseStatus(Byte.toUnsignedInt(plainResponse[0]));
+            if (responseStatus != ResponseStatus.OK) {
+                throw new RuntimeException("Unexpected initialization status response: " + responseStatus);
+            }
+            return plainResponse[1] != 0;
+        } catch (SecretSharingException e) {
+            throw new RuntimeException("Error invoking IS_INITIALIZED request", e);
+        }
     }
 
     public StateRequestResult requestState() {

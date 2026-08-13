@@ -9,6 +9,7 @@ import java.util.Map;
 import confidential.ConfidentialMessage;
 import confidential.statemanagement.ConfidentialSnapshot;
 import sse.demo.messages.ResponseStatus;
+import sse.domain.setup.InitialStatePayload;
 import sse.domain.search.SearchResponseData;
 import sse.domain.search.SearchToken;
 import sse.domain.state.State;
@@ -28,10 +29,25 @@ public final class SseServerHandler {
         this.sseServerFacade = new SseServerFacade();
     }
 
-    public boolean initializeState(byte[] encodedTrapdoorPublicKey,
+    public boolean initializeState(InitialStatePayload initialStatePayload,
                                    VerifiableShare masterKeyShare,
                                    VerifiableShare trapdoorPrivateKeyShare) {
-        return sseServerFacade.initializeState(encodedTrapdoorPublicKey, masterKeyShare, trapdoorPrivateKeyShare);
+        if (initialStatePayload == null) {
+            return false;
+        }
+        return sseServerFacade.initializeState(
+                initialStatePayload.encodedTrapdoorPublicKey(),
+                initialStatePayload.encryptedKeywordAddressMap(),
+                masterKeyShare,
+                trapdoorPrivateKeyShare
+        );
+    }
+
+    public ConfidentialMessage handleIsInitialized() {
+        return new ConfidentialMessage(new byte[] {
+                (byte) ResponseStatus.OK.ordinal(),
+                (byte) (sseServerFacade.isInitialized() ? 1 : 0)
+        });
     }
 
     public ConfidentialMessage handleSearch(int clientId, SearchToken searchToken) {

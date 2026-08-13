@@ -12,6 +12,7 @@ import confidential.facade.server.ConfidentialSingleExecutable;
 import confidential.statemanagement.ConfidentialSnapshot;
 import sse.demo.messages.RequestType;
 import sse.demo.messages.ResponseStatus;
+import sse.domain.setup.InitialStatePayload;
 import sse.domain.search.SearchToken;
 import sse.domain.update.UpdateToken;
 import vss.secretsharing.VerifiableShare;
@@ -33,14 +34,16 @@ public final class ConfidentialServerAdapter implements ConfidentialSingleExecut
             int clientId = in.readInt();
             switch (type) {
                 case INIT_STATE:
-                    byte[] encodedTrapdoorPublicKey = readPayload(in);
+                    InitialStatePayload initialStatePayload = InitialStatePayload.deserialize(readPayload(in));
                     return statusMessage(
                             handler.initializeState(
-                                    encodedTrapdoorPublicKey,
+                                    initialStatePayload,
                                     vss != null && vss.length > 0 ? vss[0] : null,
                                     vss != null && vss.length > 1 ? vss[1] : null
                             ) ? ResponseStatus.OK : ResponseStatus.FAILED
                     );
+                case IS_INITIALIZED:
+                    return handler.handleIsInitialized();
                 case SEARCH:
                     SearchToken searchToken = SearchToken.deserialize(readPayload(in));
                     return handler.handleSearch(clientId, searchToken);

@@ -7,6 +7,7 @@ import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
@@ -16,16 +17,21 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 
+import sse.crypto.KeywordAddressMapEncryption;
 import sse.crypto.TrapdoorPermutation;
-import sse.domain.EncryptedUpdateTuple;
-import sse.domain.InitializationMaterial;
-import sse.domain.KeywordUpdate;
-import sse.domain.PreparedUpdateRequest;
-import sse.domain.SearchToken;
-import sse.domain.State;
-import sse.domain.UpdateTuple;
+import sse.domain.state.EncryptedKeywordAddressMap;
+import sse.domain.update.EncryptedUpdateTuple;
+import sse.domain.setup.InitializationMaterial;
+import sse.domain.state.KeywordAddressMap;
+import sse.domain.update.KeywordUpdate;
+import sse.domain.update.PreparedUpdateRequest;
+import sse.domain.search.SearchToken;
+import sse.domain.state.State;
+import sse.domain.update.UpdateTuple;
 import sse.service.client.SearchTokenService;
 import sse.service.client.UpdateTokenService;
+import sse.vocabulary.LuceneKeywordNormalizer;
+import sse.vocabulary.VocabularyLoader;
 
 public final class SseClientFacade {
 
@@ -38,12 +44,23 @@ public final class SseClientFacade {
     }
 
     public InitializationMaterial generateInitialStateData() {
+        return generateInitialStateData(VocabularyLoader.DEFAULT_VOCABULARY_PATH);
+    }
+
+    public InitializationMaterial generateInitialStateData(Path vocabularyPath) {
+        if (vocabularyPath == null) {
+            throw new IllegalArgumentException("vocabularyPath cannot be null");
+        }
+
         SecretKey masterKey = generateMasterKey();
         KeyPair trapdoorKeyPair = TrapdoorPermutation.generateKeyPair();
+        EncryptedKeywordAddressMap encryptedKeywordAddressMap =
+                generateEncryptedKeywordAddressMap(masterKey, vocabularyPath);
         return new InitializationMaterial(
                 masterKey,
                 (RSAPublicKey) trapdoorKeyPair.getPublic(),
-                (RSAPrivateKey) trapdoorKeyPair.getPrivate()
+                (RSAPrivateKey) trapdoorKeyPair.getPrivate(),
+                encryptedKeywordAddressMap
         );
     }
 
@@ -81,5 +98,17 @@ public final class SseClientFacade {
         }
         keyGen.init(256);
         return keyGen.generateKey();
+    }
+
+    private EncryptedKeywordAddressMap generateEncryptedKeywordAddressMap(SecretKey masterKey, Path vocabularyPath) {
+        VocabularyLoader vocabularyLoader = new VocabularyLoader(new LuceneKeywordNormalizer());
+        List<String> keywords = vocabularyLoader.load(vocabularyPath);
+        KeywordAddressMap keywordAddressMap = KeywordAddressMap.build(keywords);
+        SecretKey keywordMapKey = KeywordAddressMapEncryption.deriveKey(masterKey);
+        return KeywordAddressMapEncryption.encrypt(
+                keywordMapKey,
+                KeywordAddressMapEncryption.generateIv(),
+                keywordAddressMap
+        );
     }
 }

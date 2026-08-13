@@ -7,6 +7,7 @@ public enum RequestType {
     STATE,
     SETUP_STATE,
     INIT_STATE,
+    IS_INITIALIZED,
 
     // PopulateDB requests
     SETUP_COMPLETE,

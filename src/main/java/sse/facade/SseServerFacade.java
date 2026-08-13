@@ -8,6 +8,7 @@ import sse.crypto.TrapdoorPermutation;
 import sse.domain.id.IndexAddress;
 import sse.domain.search.SearchResponseData;
 import sse.domain.search.SearchToken;
+import sse.domain.state.EncryptedKeywordAddressMap;
 import sse.domain.state.State;
 import sse.domain.update.UpdateToken;
 import sse.snapshot.SsePlainSnapshotData;
@@ -49,7 +50,8 @@ public final class SseServerFacade {
         }
         return new State(
                 state.keywordStates(),
-                TrapdoorPermutation.encodePublicKey(state.trapdoorPublicKey())
+                TrapdoorPermutation.encodePublicKey(state.trapdoorPublicKey()),
+                state.encryptedKeywordAddressMap()
         );
     }
 
@@ -92,15 +94,18 @@ public final class SseServerFacade {
     }
 
     public Boolean initializeState(byte[] encodedTrapdoorPublicKey,
+                                   EncryptedKeywordAddressMap encryptedKeywordAddressMap,
                                    VerifiableShare masterKeyShare,
                                    VerifiableShare trapdoorPrivateKeyShare) {
-        if (encodedTrapdoorPublicKey == null || masterKeyShare == null || trapdoorPrivateKeyShare == null) {
+        if (encodedTrapdoorPublicKey == null || encryptedKeywordAddressMap == null
+                || masterKeyShare == null || trapdoorPrivateKeyShare == null) {
             return false;
         }
         if (state.isInitialized()
                 || state.keyShareStore().hasMasterKeyShare()
                 || state.keyShareStore().hasTrapdoorPrivateKeyShare()
-                || state.trapdoorPublicKey() != null) {
+                || state.trapdoorPublicKey() != null
+                || state.encryptedKeywordAddressMap() != null) {
             return false;
         }
 
@@ -112,6 +117,7 @@ public final class SseServerFacade {
         }
 
         state.setTrapdoorPublicKey(trapdoorPublicKey);
+        state.setEncryptedKeywordAddressMap(encryptedKeywordAddressMap);
         state.keyShareStore().setMasterKeyShare(masterKeyShare);
         state.keyShareStore().setTrapdoorPrivateKeyShare(trapdoorPrivateKeyShare);
         return true;

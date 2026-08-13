@@ -19,13 +19,18 @@ import sse.domain.id.KeywordToken;
 public final class State implements Serializable {
     private final Map<KeywordToken, KeywordState> keywordStates;
     private final byte[] encodedTrapdoorPublicKey;
+    private final EncryptedKeywordAddressMap encryptedKeywordAddressMap;
 
-    public State(Map<KeywordToken, KeywordState> keywordStates, byte[] encodedTrapdoorPublicKey) {
-        if (keywordStates == null || encodedTrapdoorPublicKey == null) {
-            throw new IllegalArgumentException("keywordStates and encodedTrapdoorPublicKey cannot be null");
+    public State(Map<KeywordToken, KeywordState> keywordStates, byte[] encodedTrapdoorPublicKey,
+                 EncryptedKeywordAddressMap encryptedKeywordAddressMap) {
+        if (keywordStates == null || encodedTrapdoorPublicKey == null || encryptedKeywordAddressMap == null) {
+            throw new IllegalArgumentException(
+                    "keywordStates, encodedTrapdoorPublicKey, and encryptedKeywordAddressMap cannot be null"
+            );
         }
         this.keywordStates = Collections.unmodifiableMap(new LinkedHashMap<>(keywordStates));
         this.encodedTrapdoorPublicKey = encodedTrapdoorPublicKey.clone();
+        this.encryptedKeywordAddressMap = encryptedKeywordAddressMap;
     }
 
     public Map<KeywordToken, KeywordState> keywordStates() {
@@ -34,6 +39,10 @@ public final class State implements Serializable {
 
     public byte[] encodedTrapdoorPublicKey() {
         return encodedTrapdoorPublicKey.clone();
+    }
+
+    public EncryptedKeywordAddressMap encryptedKeywordAddressMap() {
+        return encryptedKeywordAddressMap;
     }
 
     public byte[] serialize() {
@@ -70,12 +79,13 @@ public final class State implements Serializable {
         }
         State state = (State) o;
         return Objects.equals(keywordStates, state.keywordStates) &&
-                Arrays.equals(encodedTrapdoorPublicKey, state.encodedTrapdoorPublicKey);
+                Arrays.equals(encodedTrapdoorPublicKey, state.encodedTrapdoorPublicKey) &&
+                Objects.equals(encryptedKeywordAddressMap, state.encryptedKeywordAddressMap);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(keywordStates);
+        int result = Objects.hash(keywordStates, encryptedKeywordAddressMap);
         result = 31 * result + Arrays.hashCode(encodedTrapdoorPublicKey);
         return result;
     }
@@ -85,6 +95,7 @@ public final class State implements Serializable {
         return "State[" +
                 "keywordStates=" + keywordStates +
                 ", encodedTrapdoorPublicKeyLength=" + encodedTrapdoorPublicKey.length +
+                ", encryptedKeywordAddressMap=" + encryptedKeywordAddressMap +
                 ']';
     }
 }

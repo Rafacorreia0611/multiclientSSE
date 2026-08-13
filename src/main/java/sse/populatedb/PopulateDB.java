@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 
 import sse.demo.client.ConfidentialClientAdapter;
+import sse.vocabulary.VocabularyLoader;
 import vss.facade.SecretSharingException;
 
 public final class PopulateDB {
@@ -13,11 +14,12 @@ public final class PopulateDB {
     private static final Path DEFAULT_INPUT = Paths.get("datasets", "processed", "enron", "keyword_to_docids.ndjson");
     private static final int DEFAULT_BATCH_SIZE = 1_000;
     private static final String USAGE =
-            "Usage: PopulateDB [--client-id N] [--input PATH] [--batch-size N]";
+            "Usage: PopulateDB [--client-id N] [--input PATH] [--batch-size N] [--vocabulary PATH]";
 
     public static void main(String[] args) {
         int clientId = DEFAULT_CLIENT_ID;
         Path inputPath = DEFAULT_INPUT;
+        Path vocabularyPath = VocabularyLoader.DEFAULT_VOCABULARY_PATH;
         int batchSize = DEFAULT_BATCH_SIZE;
 
         for (int i = 0; i < args.length; i++) {
@@ -32,6 +34,9 @@ public final class PopulateDB {
                 case "--batch-size":
                     batchSize = parsePositiveInteger(readOptionValue(args, ++i, "--batch-size"), "--batch-size");
                     break;
+                case "--vocabulary":
+                    vocabularyPath = Paths.get(readOptionValue(args, ++i, "--vocabulary"));
+                    break;
                 default:
                     throw new IllegalArgumentException("Unknown argument: " + arg + ". " + USAGE);
             }
@@ -41,7 +46,7 @@ public final class PopulateDB {
         ConfidentialClientAdapter adapter = null;
         try {
             adapter = new ConfidentialClientAdapter(clientId);
-            PopulateDBHandler populateDBHandler = new PopulateDBHandler(adapter, batchSize);
+            PopulateDBHandler populateDBHandler = new PopulateDBHandler(adapter, batchSize, vocabularyPath);
             PopulateDBHandler.PopulationSummary summary = populateDBHandler.populate(inputPath);
             System.out.println("PopulateDB finished.");
             System.out.println("Processed keywords: " + summary.processedKeywords());
