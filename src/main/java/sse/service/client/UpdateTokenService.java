@@ -7,9 +7,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
@@ -63,61 +61,48 @@ public final class UpdateTokenService {
     }
 
     public PreparedUpdateRequest prepareUpdateRequest(SecretKey masterKey, RSAPrivateKey trapdoorPrivateKey,
-                                                      State state, List<KeywordUpdate> updates) {
+                                                      State state, KeywordUpdate update) {
         if (masterKey == null || trapdoorPrivateKey == null || state == null) {
             throw new IllegalArgumentException("masterKey, trapdoorPrivateKey, and state cannot be null");
         }
-        if (updates == null || updates.isEmpty()) {
-            throw new IllegalArgumentException("updates cannot be null or empty");
+        if (update == null) {
+            throw new IllegalArgumentException("update cannot be null");
         }
 
         RSAPublicKey trapdoorPublicKey =
                 TrapdoorPermutation.decodePublicKey(state.encodedTrapdoorPublicKey());
         byte[] tokenKey = Prf.prf(masterKey, TOKEN_KEY_LABEL);
         byte[] addressKey = Prf.prf(masterKey, ADDRESS_KEY_LABEL);
-        Map<KeywordToken, KeywordState> workingKeywordStates =
-                new LinkedHashMap<KeywordToken, KeywordState>(state.keywordStates());
-        Map<KeywordToken, KeywordState> updatedKeywordStates =
-                new LinkedHashMap<KeywordToken, KeywordState>();
         List<UpdateTokenItem> items = new ArrayList<UpdateTokenItem>();
         List<SecretKey> tupleKeys = new ArrayList<SecretKey>();
 
-        for (KeywordUpdate update : updates) {
-            if (update == null) {
-                throw new IllegalArgumentException("updates cannot contain null values");
+        String keyword = update.keyword();
+        KeywordToken keywordToken = new KeywordToken(Prf.prf(tokenKey, keyword));
+        byte[] keywordAddressKey = Prf.prf(addressKey, keyword);
+        KeywordState keywordState = state.keywordStates().get(keywordToken);
+
+        for (String docId : update.docIds()) {
+            SecretKey tupleKey = generateTupleSecretKey();
+            EncryptedUpdateTuple encryptedTuple =
+                    generateEncryptedUpdateTuple(docId, update.operation(), tupleKey);
+
+            SearchTokenValue nextToken;
+            int nextCounter;
+            if (keywordState == null) {
+                nextToken = TrapdoorPermutation.generateRandomToken(trapdoorPublicKey);
+                nextCounter = 1;
+            } else {
+                nextToken = TrapdoorPermutation.privateStep(keywordState.currentToken(), trapdoorPrivateKey);
+                nextCounter = keywordState.counter() + 1;
             }
 
-            String keyword = update.keyword();
-            KeywordToken keywordToken = new KeywordToken(Prf.prf(tokenKey, keyword));
-            byte[] keywordAddressKey = Prf.prf(addressKey, keyword);
-            KeywordState keywordState = workingKeywordStates.get(keywordToken);
+            IndexAddress address = TrapdoorPermutation.deriveAddress(keywordAddressKey, nextToken);
+            items.add(new UpdateTokenItem(address, encryptedTuple));
+            tupleKeys.add(tupleKey);
 
-            for (String docId : update.docIds()) {
-                SecretKey tupleKey = generateTupleSecretKey();
-                EncryptedUpdateTuple encryptedTuple =
-                        generateEncryptedUpdateTuple(docId, update.operation(), tupleKey);
-
-                SearchTokenValue nextToken;
-                int nextCounter;
-                if (keywordState == null) {
-                    nextToken = TrapdoorPermutation.generateRandomToken(trapdoorPublicKey);
-                    nextCounter = 1;
-                } else {
-                    nextToken = TrapdoorPermutation.privateStep(keywordState.currentToken(), trapdoorPrivateKey);
-                    nextCounter = keywordState.counter() + 1;
-                }
-
-                IndexAddress address = TrapdoorPermutation.deriveAddress(keywordAddressKey, nextToken);
-                items.add(new UpdateTokenItem(address, encryptedTuple));
-                tupleKeys.add(tupleKey);
-
-                keywordState = new KeywordState(nextToken, nextCounter, false);
-                workingKeywordStates.put(keywordToken, keywordState);
-            }
-
-            updatedKeywordStates.put(keywordToken, keywordState);
+            keywordState = new KeywordState(nextToken, nextCounter, false);
         }
 
-        return new PreparedUpdateRequest(new UpdateToken(items, updatedKeywordStates), tupleKeys);
+        return new PreparedUpdateRequest(new UpdateToken(items, keywordToken, keywordState), tupleKeys);
     }
 }

@@ -10,9 +10,7 @@ import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 import sse.domain.id.KeywordToken;
@@ -20,11 +18,12 @@ import sse.domain.state.KeywordState;
 
 public final class UpdateToken implements Serializable {
     private final List<UpdateTokenItem> items;
-    private final Map<KeywordToken, KeywordState> updatedKeywordStates;
+    private final KeywordToken updatedKeywordToken;
+    private final KeywordState updatedKeywordState;
 
-    public UpdateToken(List<UpdateTokenItem> items, Map<KeywordToken, KeywordState> updatedKeywordStates) {
-        if (items == null || items.isEmpty() || updatedKeywordStates == null || updatedKeywordStates.isEmpty()) {
-            throw new IllegalArgumentException("items and updatedKeywordStates cannot be null or empty");
+    public UpdateToken(List<UpdateTokenItem> items, KeywordToken updatedKeywordToken, KeywordState updatedKeywordState) {
+        if (items == null || items.isEmpty() || updatedKeywordToken == null || updatedKeywordState == null) {
+            throw new IllegalArgumentException("items, updatedKeywordToken and updatedKeywordState cannot be null");
         }
 
         List<UpdateTokenItem> normalizedItems = new ArrayList<UpdateTokenItem>(items.size());
@@ -36,15 +35,20 @@ public final class UpdateToken implements Serializable {
         }
 
         this.items = Collections.unmodifiableList(normalizedItems);
-        this.updatedKeywordStates = Collections.unmodifiableMap(new LinkedHashMap<>(updatedKeywordStates));
+        this.updatedKeywordToken = updatedKeywordToken;
+        this.updatedKeywordState = updatedKeywordState;
     }
 
     public List<UpdateTokenItem> items() {
         return items;
     }
 
-    public Map<KeywordToken, KeywordState> updatedKeywordStates() {
-        return updatedKeywordStates;
+    public KeywordToken updatedKeywordToken() {
+        return updatedKeywordToken;
+    }
+
+    public KeywordState updatedKeywordState() {
+        return updatedKeywordState;
     }
 
     public byte[] serialize() {
@@ -81,19 +85,21 @@ public final class UpdateToken implements Serializable {
         }
         UpdateToken that = (UpdateToken) o;
         return Objects.equals(items, that.items) &&
-                Objects.equals(updatedKeywordStates, that.updatedKeywordStates);
+                Objects.equals(updatedKeywordToken, that.updatedKeywordToken) &&
+                Objects.equals(updatedKeywordState, that.updatedKeywordState);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(items, updatedKeywordStates);
+        return Objects.hash(items, updatedKeywordToken, updatedKeywordState);
     }
 
     @Override
     public String toString() {
         return "UpdateToken[" +
                 "items=" + items +
-                ", updatedKeywordStates=" + updatedKeywordStates +
+                ", updatedKeywordToken=" + updatedKeywordToken +
+                ", updatedKeywordState=" + updatedKeywordState +
                 ']';
     }
 }

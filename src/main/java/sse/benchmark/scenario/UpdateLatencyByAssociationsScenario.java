@@ -209,7 +209,9 @@ public final class UpdateLatencyByAssociationsScenario implements BenchmarkScena
 
     private void runWarmups(SseClientHandler clientHandler, List<UpdatePayload> warmupPayloads) {
         for (UpdatePayload payload : warmupPayloads) {
-            clientHandler.update(toKeywordUpdates(payload));
+            for (KeywordUpdate update : toKeywordUpdates(payload)) {
+                clientHandler.update(update);
+            }
         }
     }
 
@@ -219,7 +221,9 @@ public final class UpdateLatencyByAssociationsScenario implements BenchmarkScena
         List<KeywordUpdate> keywordUpdates = toKeywordUpdates(payload);
 
         long startTime = System.nanoTime();
-        clientHandler.update(keywordUpdates);
+        for (KeywordUpdate update : keywordUpdates) {
+            clientHandler.update(update);
+        }
         long endTime = System.nanoTime();
 
         resultWriter.writeUpdateSample(

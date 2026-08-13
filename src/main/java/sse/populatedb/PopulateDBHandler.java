@@ -4,7 +4,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.interfaces.RSAPrivateKey;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -86,8 +85,6 @@ public final class PopulateDBHandler {
             long sentBatches = 0L;
             long startTimeNanos = System.nanoTime();
             long lastProgressLogNanos = startTimeNanos;
-            List<KeywordUpdate> pendingUpdates = new ArrayList<KeywordUpdate>();
-            int pendingDocIds = 0;
 
             String line;
             long lineNumber = 0L;
@@ -102,52 +99,31 @@ public final class PopulateDBHandler {
                 List<String> docIds = entry.docIds();
                 int start = 0;
                 while (start < docIds.size()) {
-                    int availableSlots = batchSize - pendingDocIds;
-                    int end = Math.min(start + availableSlots, docIds.size());
+                    int end = Math.min(start + batchSize, docIds.size());
                     List<String> batchDocIds = docIds.subList(start, end);
-                    pendingUpdates.add(new KeywordUpdate(
-                            entry.keyword(),
-                            batchDocIds,
-                            UpdateOp.ADD
-                    ));
-
-                    pendingDocIds += batchDocIds.size();
+                    SentBatch sentBatch = sendKeywordBatch(
+                            new KeywordUpdate(
+                                    entry.keyword(),
+                                    batchDocIds,
+                                    UpdateOp.ADD
+                            ),
+                            masterKey,
+                            trapdoorPrivateKey,
+                            currentState
+                    );
+                    currentState = sentBatch.state();
+                    processedDocIds += sentBatch.sentDocIds();
+                    sentBatches++;
                     start = end;
 
-                    if (pendingDocIds == batchSize) {
-                        SentBatch sentBatch = sendPendingBatch(
-                                pendingUpdates,
-                                masterKey,
-                                trapdoorPrivateKey,
-                                currentState
-                        );
-                        currentState = sentBatch.state();
-                        processedDocIds += sentBatch.sentDocIds();
-                        sentBatches++;
-                        pendingUpdates.clear();
-                        pendingDocIds = 0;
-
-                        long now = System.nanoTime();
-                        if (shouldLogProgress(lastProgressLogNanos, now)) {
-                            printProgress(processedKeywords, processedDocIds, sentBatches, startTimeNanos);
-                            lastProgressLogNanos = now;
-                        }
+                    long now = System.nanoTime();
+                    if (shouldLogProgress(lastProgressLogNanos, now)) {
+                        printProgress(processedKeywords, processedDocIds, sentBatches, startTimeNanos);
+                        lastProgressLogNanos = now;
                     }
                 }
 
                 processedKeywords++;
-            }
-
-            if (pendingDocIds > 0) {
-                SentBatch sentBatch = sendPendingBatch(
-                        pendingUpdates,
-                        masterKey,
-                        trapdoorPrivateKey,
-                        currentState
-                );
-                currentState = sentBatch.state();
-                processedDocIds += sentBatch.sentDocIds();
-                sentBatches++;
             }
 
             if (!adapter.sendSetupCompleteRequest()) {
@@ -166,13 +142,13 @@ public final class PopulateDBHandler {
         }
     }
 
-    private SentBatch sendPendingBatch(List<KeywordUpdate> pendingUpdates,
+    private SentBatch sendKeywordBatch(KeywordUpdate update,
                                        SecretKey masterKey, RSAPrivateKey trapdoorPrivateKey, State currentState) {
         PreparedUpdateRequest preparedUpdateRequest = sseClientFacade.prepareUpdateRequest(
                 masterKey,
                 trapdoorPrivateKey,
                 currentState,
-                pendingUpdates
+                update
         );
 
         if (preparedUpdateRequest.updateToken().items().size() != preparedUpdateRequest.tupleKeys().size()) {
@@ -189,7 +165,10 @@ public final class PopulateDBHandler {
 
         Map<KeywordToken, KeywordState> nextKeywordStates =
                 new LinkedHashMap<KeywordToken, KeywordState>(currentState.keywordStates());
-        nextKeywordStates.putAll(preparedUpdateRequest.updateToken().updatedKeywordStates());
+        nextKeywordStates.put(
+                preparedUpdateRequest.updateToken().updatedKeywordToken(),
+                preparedUpdateRequest.updateToken().updatedKeywordState()
+        );
         return new SentBatch(
                 new State(
                         nextKeywordStates,

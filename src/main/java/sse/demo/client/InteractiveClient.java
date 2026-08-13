@@ -90,44 +90,27 @@ public final class InteractiveClient {
 
     private void handleUpdate(boolean isAdd) {
         System.out.println(isAdd ? "Add" : "Delete");
-        List<KeywordUpdate> updates = new ArrayList<KeywordUpdate>();
         UpdateOp operation = isAdd ? UpdateOp.ADD : UpdateOp.DEL;
 
-        while (true) {
-            System.out.println("Keyword:");
-            String keyword = readUserLine();
-            if (keyword == null) {
-                System.out.println("Input closed. Back to menu.");
-                return;
-            }
-
-            System.out.println("Doc IDs separated by comma:");
-            String docIdsInput = readUserLine();
-            if (docIdsInput == null) {
-                System.out.println("Input closed. Back to menu.");
-                return;
-            }
-
-            try {
-                updates.add(new KeywordUpdate(keyword, parseDocIds(docIdsInput), operation));
-            } catch (IllegalArgumentException e) {
-                System.out.println("Invalid update: " + e.getMessage());
-                continue;
-            }
-
-            System.out.println("Add another keyword to this update? [y/N]");
-            String continueInput = readUserLine();
-            if (continueInput == null) {
-                System.out.println("Input closed. Back to menu.");
-                return;
-            }
-            String normalized = continueInput.trim().toLowerCase();
-            if (!"y".equals(normalized) && !"yes".equals(normalized)) {
-                break;
-            }
+        System.out.println("Keyword:");
+        String keyword = readUserLine();
+        if (keyword == null) {
+            System.out.println("Input closed. Back to menu.");
+            return;
         }
 
-        client.update(updates);
+        System.out.println("Doc IDs separated by comma:");
+        String docIdsInput = readUserLine();
+        if (docIdsInput == null) {
+            System.out.println("Input closed. Back to menu.");
+            return;
+        }
+
+        try {
+            client.update(new KeywordUpdate(keyword, parseDocIds(docIdsInput), operation));
+        } catch (IllegalArgumentException e) {
+            System.out.println("Invalid update: " + e.getMessage());
+        }
     }
 
     private String readUserLine() {

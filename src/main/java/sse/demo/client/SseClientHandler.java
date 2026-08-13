@@ -81,9 +81,9 @@ public final class SseClientHandler {
         }
     }
 
-    public void update(List<KeywordUpdate> updates) {
-        if (updates == null || updates.isEmpty()) {
-            throw new IllegalArgumentException("updates cannot be null or empty");
+    public void update(KeywordUpdate update) {
+        if (update == null) {
+            throw new IllegalArgumentException("update cannot be null");
         }
 
         while (true) {
@@ -96,7 +96,7 @@ public final class SseClientHandler {
                     masterKey,
                     trapdoorPrivateKey,
                     state,
-                    updates
+                    update
             );
 
             SecretKey[] tupleKeys = preparedUpdateRequest.tupleKeys()
