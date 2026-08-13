@@ -15,10 +15,10 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
-import sse.domain.state.EncryptedKeywordAddressMap;
-import sse.domain.state.KeywordAddressMap;
+import sse.domain.state.EncryptedKeywordLocationMap;
+import sse.domain.state.KeywordLocationMap;
 
-public final class KeywordAddressMapEncryption {
+public final class KeywordLocationMapEncryption {
 
     private static final String CIPHER_ALGORITHM = "AES/GCM/NoPadding";
     private static final String KEY_ALGORITHM = "AES";
@@ -26,7 +26,7 @@ public final class KeywordAddressMapEncryption {
     private static final int GCM_IV_LENGTH = 12;
     private static final int GCM_TAG_LENGTH = 128;
 
-    private KeywordAddressMapEncryption() {
+    private KeywordLocationMapEncryption() {
         // Utility class.
     }
 
@@ -43,7 +43,7 @@ public final class KeywordAddressMapEncryption {
         return iv;
     }
 
-    public static EncryptedKeywordAddressMap encrypt(SecretKey key, byte[] iv, KeywordAddressMap map) {
+    public static EncryptedKeywordLocationMap encrypt(SecretKey key, byte[] iv, KeywordLocationMap map) {
         if (key == null || iv == null || map == null) {
             throw new IllegalArgumentException("key, iv, and map cannot be null");
         }
@@ -54,13 +54,13 @@ public final class KeywordAddressMapEncryption {
         try {
             Cipher cipher = Cipher.getInstance(CIPHER_ALGORITHM);
             cipher.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(GCM_TAG_LENGTH, iv));
-            return new EncryptedKeywordAddressMap(cipher.doFinal(serialize(map)), iv);
+            return new EncryptedKeywordLocationMap(cipher.doFinal(serialize(map)), iv);
         } catch (GeneralSecurityException e) {
-            throw new IllegalStateException("Failed to encrypt keyword address map", e);
+            throw new IllegalStateException("Failed to encrypt keyword location map", e);
         }
     }
 
-    public static KeywordAddressMap decrypt(SecretKey key, EncryptedKeywordAddressMap encryptedMap) {
+    public static KeywordLocationMap decrypt(SecretKey key, EncryptedKeywordLocationMap encryptedMap) {
         if (key == null || encryptedMap == null) {
             throw new IllegalArgumentException("key and encryptedMap cannot be null");
         }
@@ -71,16 +71,16 @@ public final class KeywordAddressMapEncryption {
                     new GCMParameterSpec(GCM_TAG_LENGTH, encryptedMap.iv()));
             byte[] plainData = cipher.doFinal(encryptedMap.encryptedData());
             Object obj = deserialize(plainData);
-            if (!(obj instanceof KeywordAddressMap)) {
-                throw new IllegalArgumentException("Decrypted keyword address map has invalid type");
+            if (!(obj instanceof KeywordLocationMap)) {
+                throw new IllegalArgumentException("Decrypted keyword location map has invalid type");
             }
-            return (KeywordAddressMap) obj;
+            return (KeywordLocationMap) obj;
         } catch (GeneralSecurityException e) {
-            throw new IllegalStateException("Failed to decrypt keyword address map", e);
+            throw new IllegalStateException("Failed to decrypt keyword location map", e);
         }
     }
 
-    private static byte[] serialize(KeywordAddressMap map) {
+    private static byte[] serialize(KeywordLocationMap map) {
         try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
              ObjectOutput out = new ObjectOutputStream(bos)) {
             out.writeObject(map);
@@ -88,7 +88,7 @@ public final class KeywordAddressMapEncryption {
             bos.flush();
             return bos.toByteArray();
         } catch (IOException e) {
-            throw new IllegalStateException("Failed to serialize keyword address map", e);
+            throw new IllegalStateException("Failed to serialize keyword location map", e);
         }
     }
 
@@ -97,7 +97,7 @@ public final class KeywordAddressMapEncryption {
              ObjectInput in = new ObjectInputStream(bis)) {
             return in.readObject();
         } catch (IOException | ClassNotFoundException e) {
-            throw new IllegalStateException("Failed to deserialize keyword address map", e);
+            throw new IllegalStateException("Failed to deserialize keyword location map", e);
         }
     }
 }

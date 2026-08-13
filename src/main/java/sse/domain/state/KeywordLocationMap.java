@@ -11,18 +11,18 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public final class KeywordAddressMap implements Serializable {
+public final class KeywordLocationMap implements Serializable {
 
     private final Map<String, Integer> addresses;
     private final int oramCapacity;
 
-    private KeywordAddressMap(Map<String, Integer> addresses, int oramCapacity) {
+    private KeywordLocationMap(Map<String, Integer> addresses, int oramCapacity) {
         validate(addresses, oramCapacity);
         this.addresses = Collections.unmodifiableMap(new LinkedHashMap<String, Integer>(addresses));
         this.oramCapacity = oramCapacity;
     }
 
-    public static KeywordAddressMap build(List<String> keywords) {
+    public static KeywordLocationMap build(List<String> keywords) {
         if (keywords == null) {
             throw new IllegalArgumentException("keywords cannot be null");
         }
@@ -51,7 +51,7 @@ public final class KeywordAddressMap implements Serializable {
         for (int i = 0; i < keywords.size(); i++) {
             result.put(keywords.get(i), shuffledAddresses.get(i));
         }
-        return new KeywordAddressMap(result, oramCapacity);
+        return new KeywordLocationMap(result, oramCapacity);
     }
 
     private static int chooseMinimumOramCapacity(int keywordCount) {
@@ -126,7 +126,7 @@ public final class KeywordAddressMap implements Serializable {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        KeywordAddressMap that = (KeywordAddressMap) o;
+        KeywordLocationMap that = (KeywordLocationMap) o;
         return oramCapacity == that.oramCapacity
                 && Objects.equals(addresses, that.addresses);
     }
@@ -138,7 +138,7 @@ public final class KeywordAddressMap implements Serializable {
 
     @Override
     public String toString() {
-        return "KeywordAddressMap[" +
+        return "KeywordLocationMap[" +
                 "size=" + addresses.size() +
                 ", oramCapacity=" + oramCapacity +
                 ']';

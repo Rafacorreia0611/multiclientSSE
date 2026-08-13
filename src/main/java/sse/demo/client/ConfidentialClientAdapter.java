@@ -56,7 +56,7 @@ public final class ConfidentialClientAdapter {
                 RequestType.INIT_STATE,
                 new InitialStatePayload(
                         TrapdoorPermutation.encodePublicKey(initializationMaterial.trapdoorPublicKey()),
-                        initializationMaterial.encryptedKeywordAddressMap()
+                        initializationMaterial.encryptedKeywordLocationMap()
                 ).serialize(),
                 new byte[][] {
                         initializationMaterial.masterKey().getEncoded(),

@@ -37,7 +37,7 @@ public final class SseServerHandler {
         }
         return sseServerFacade.initializeState(
                 initialStatePayload.encodedTrapdoorPublicKey(),
-                initialStatePayload.encryptedKeywordAddressMap(),
+                initialStatePayload.encryptedKeywordLocationMap(),
                 masterKeyShare,
                 trapdoorPrivateKeyShare
         );

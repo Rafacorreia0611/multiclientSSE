@@ -11,12 +11,12 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Objects;
 
-public final class EncryptedKeywordAddressMap implements Serializable {
+public final class EncryptedKeywordLocationMap implements Serializable {
 
     private final byte[] encryptedData;
     private final byte[] iv;
 
-    public EncryptedKeywordAddressMap(byte[] encryptedData, byte[] iv) {
+    public EncryptedKeywordLocationMap(byte[] encryptedData, byte[] iv) {
         if (encryptedData == null || iv == null) {
             throw new IllegalArgumentException("encryptedData and iv cannot be null");
         }
@@ -40,19 +40,19 @@ public final class EncryptedKeywordAddressMap implements Serializable {
             bos.flush();
             return bos.toByteArray();
         } catch (IOException e) {
-            throw new RuntimeException("Error serializing encrypted keyword address map", e);
+            throw new RuntimeException("Error serializing encrypted keyword location map", e);
         }
     }
 
-    public static EncryptedKeywordAddressMap deserialize(byte[] serializedMap) {
+    public static EncryptedKeywordLocationMap deserialize(byte[] serializedMap) {
         if (serializedMap == null) {
             return null;
         }
         try (ByteArrayInputStream bis = new ByteArrayInputStream(serializedMap);
              ObjectInput in = new ObjectInputStream(bis)) {
-            return (EncryptedKeywordAddressMap) in.readObject();
+            return (EncryptedKeywordLocationMap) in.readObject();
         } catch (IOException | ClassNotFoundException e) {
-            throw new RuntimeException("Error deserializing encrypted keyword address map", e);
+            throw new RuntimeException("Error deserializing encrypted keyword location map", e);
         }
     }
 
@@ -64,7 +64,7 @@ public final class EncryptedKeywordAddressMap implements Serializable {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        EncryptedKeywordAddressMap that = (EncryptedKeywordAddressMap) o;
+        EncryptedKeywordLocationMap that = (EncryptedKeywordLocationMap) o;
         return Arrays.equals(encryptedData, that.encryptedData)
                 && Arrays.equals(iv, that.iv);
     }
@@ -76,7 +76,7 @@ public final class EncryptedKeywordAddressMap implements Serializable {
 
     @Override
     public String toString() {
-        return "EncryptedKeywordAddressMap[" +
+        return "EncryptedKeywordLocationMap[" +
                 "encryptedDataLength=" + encryptedData.length +
                 ", ivLength=" + iv.length +
                 ']';

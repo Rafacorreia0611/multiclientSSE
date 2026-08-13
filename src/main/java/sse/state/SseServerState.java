@@ -4,7 +4,7 @@ import java.security.interfaces.RSAPublicKey;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import sse.domain.state.EncryptedKeywordAddressMap;
+import sse.domain.state.EncryptedKeywordLocationMap;
 import sse.domain.state.KeywordState;
 import sse.domain.id.KeywordToken;
 
@@ -12,7 +12,7 @@ public final class SseServerState {
 
     private Map<KeywordToken, KeywordState> keywordStates;
     private RSAPublicKey trapdoorPublicKey;
-    private EncryptedKeywordAddressMap encryptedKeywordAddressMap;
+    private EncryptedKeywordLocationMap encryptedKeywordLocationMap;
     private int activeClientId;
     private int blockedStateRequestsWhileActive;
     private boolean setupInProgress;
@@ -22,7 +22,7 @@ public final class SseServerState {
     public SseServerState() {
         this.keywordStates = new LinkedHashMap<>();
         this.trapdoorPublicKey = null;
-        this.encryptedKeywordAddressMap = null;
+        this.encryptedKeywordLocationMap = null;
         this.activeClientId = -1;
         this.blockedStateRequestsWhileActive = 0;
         this.setupInProgress = false;
@@ -46,12 +46,12 @@ public final class SseServerState {
         this.trapdoorPublicKey = trapdoorPublicKey;
     }
 
-    public EncryptedKeywordAddressMap encryptedKeywordAddressMap() {
-        return encryptedKeywordAddressMap;
+    public EncryptedKeywordLocationMap encryptedKeywordLocationMap() {
+        return encryptedKeywordLocationMap;
     }
 
-    public void setEncryptedKeywordAddressMap(EncryptedKeywordAddressMap encryptedKeywordAddressMap) {
-        this.encryptedKeywordAddressMap = encryptedKeywordAddressMap;
+    public void setEncryptedKeywordLocationMap(EncryptedKeywordLocationMap encryptedKeywordLocationMap) {
+        this.encryptedKeywordLocationMap = encryptedKeywordLocationMap;
     }
 
     public int activeClientId() {
@@ -80,7 +80,7 @@ public final class SseServerState {
 
     public boolean isInitialized() {
         return trapdoorPublicKey != null
-                && encryptedKeywordAddressMap != null
+                && encryptedKeywordLocationMap != null
                 && keyShareStore.hasMasterKeyShare()
                 && keyShareStore.hasTrapdoorPrivateKeyShare();
     }

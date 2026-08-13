@@ -8,7 +8,7 @@ import sse.crypto.TrapdoorPermutation;
 import sse.domain.id.IndexAddress;
 import sse.domain.search.SearchResponseData;
 import sse.domain.search.SearchToken;
-import sse.domain.state.EncryptedKeywordAddressMap;
+import sse.domain.state.EncryptedKeywordLocationMap;
 import sse.domain.state.State;
 import sse.domain.update.UpdateToken;
 import sse.snapshot.SsePlainSnapshotData;
@@ -51,7 +51,7 @@ public final class SseServerFacade {
         return new State(
                 state.keywordStates(),
                 TrapdoorPermutation.encodePublicKey(state.trapdoorPublicKey()),
-                state.encryptedKeywordAddressMap()
+                state.encryptedKeywordLocationMap()
         );
     }
 
@@ -94,10 +94,10 @@ public final class SseServerFacade {
     }
 
     public Boolean initializeState(byte[] encodedTrapdoorPublicKey,
-                                   EncryptedKeywordAddressMap encryptedKeywordAddressMap,
+                                   EncryptedKeywordLocationMap encryptedKeywordLocationMap,
                                    VerifiableShare masterKeyShare,
                                    VerifiableShare trapdoorPrivateKeyShare) {
-        if (encodedTrapdoorPublicKey == null || encryptedKeywordAddressMap == null
+        if (encodedTrapdoorPublicKey == null || encryptedKeywordLocationMap == null
                 || masterKeyShare == null || trapdoorPrivateKeyShare == null) {
             return false;
         }
@@ -105,7 +105,7 @@ public final class SseServerFacade {
                 || state.keyShareStore().hasMasterKeyShare()
                 || state.keyShareStore().hasTrapdoorPrivateKeyShare()
                 || state.trapdoorPublicKey() != null
-                || state.encryptedKeywordAddressMap() != null) {
+                || state.encryptedKeywordLocationMap() != null) {
             return false;
         }
 
@@ -117,7 +117,7 @@ public final class SseServerFacade {
         }
 
         state.setTrapdoorPublicKey(trapdoorPublicKey);
-        state.setEncryptedKeywordAddressMap(encryptedKeywordAddressMap);
+        state.setEncryptedKeywordLocationMap(encryptedKeywordLocationMap);
         state.keyShareStore().setMasterKeyShare(masterKeyShare);
         state.keyShareStore().setTrapdoorPrivateKeyShare(trapdoorPrivateKeyShare);
         return true;

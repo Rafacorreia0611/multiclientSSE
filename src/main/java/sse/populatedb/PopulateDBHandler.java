@@ -194,7 +194,7 @@ public final class PopulateDBHandler {
                 new State(
                         nextKeywordStates,
                         currentState.encodedTrapdoorPublicKey(),
-                        currentState.encryptedKeywordAddressMap()
+                        currentState.encryptedKeywordLocationMap()
                 ),
                 preparedUpdateRequest.updateToken().items().size()
         );

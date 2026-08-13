@@ -17,12 +17,12 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 
-import sse.crypto.KeywordAddressMapEncryption;
+import sse.crypto.KeywordLocationMapEncryption;
 import sse.crypto.TrapdoorPermutation;
-import sse.domain.state.EncryptedKeywordAddressMap;
+import sse.domain.state.EncryptedKeywordLocationMap;
 import sse.domain.update.EncryptedUpdateTuple;
 import sse.domain.setup.InitializationMaterial;
-import sse.domain.state.KeywordAddressMap;
+import sse.domain.state.KeywordLocationMap;
 import sse.domain.update.KeywordUpdate;
 import sse.domain.update.PreparedUpdateRequest;
 import sse.domain.search.SearchToken;
@@ -54,13 +54,13 @@ public final class SseClientFacade {
 
         SecretKey masterKey = generateMasterKey();
         KeyPair trapdoorKeyPair = TrapdoorPermutation.generateKeyPair();
-        EncryptedKeywordAddressMap encryptedKeywordAddressMap =
-                generateEncryptedKeywordAddressMap(masterKey, vocabularyPath);
+        EncryptedKeywordLocationMap encryptedKeywordLocationMap =
+                generateEncryptedKeywordLocationMap(masterKey, vocabularyPath);
         return new InitializationMaterial(
                 masterKey,
                 (RSAPublicKey) trapdoorKeyPair.getPublic(),
                 (RSAPrivateKey) trapdoorKeyPair.getPrivate(),
-                encryptedKeywordAddressMap
+                encryptedKeywordLocationMap
         );
     }
 
@@ -100,15 +100,15 @@ public final class SseClientFacade {
         return keyGen.generateKey();
     }
 
-    private EncryptedKeywordAddressMap generateEncryptedKeywordAddressMap(SecretKey masterKey, Path vocabularyPath) {
+    private EncryptedKeywordLocationMap generateEncryptedKeywordLocationMap(SecretKey masterKey, Path vocabularyPath) {
         VocabularyLoader vocabularyLoader = new VocabularyLoader(new LuceneKeywordNormalizer());
         List<String> keywords = vocabularyLoader.load(vocabularyPath);
-        KeywordAddressMap keywordAddressMap = KeywordAddressMap.build(keywords);
-        SecretKey keywordMapKey = KeywordAddressMapEncryption.deriveKey(masterKey);
-        return KeywordAddressMapEncryption.encrypt(
+        KeywordLocationMap keywordLocationMap = KeywordLocationMap.build(keywords);
+        SecretKey keywordMapKey = KeywordLocationMapEncryption.deriveKey(masterKey);
+        return KeywordLocationMapEncryption.encrypt(
                 keywordMapKey,
-                KeywordAddressMapEncryption.generateIv(),
-                keywordAddressMap
+                KeywordLocationMapEncryption.generateIv(),
+                keywordLocationMap
         );
     }
 }

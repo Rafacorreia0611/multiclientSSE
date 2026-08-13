@@ -5,26 +5,26 @@ import java.security.interfaces.RSAPublicKey;
 
 import javax.crypto.SecretKey;
 
-import sse.domain.state.EncryptedKeywordAddressMap;
+import sse.domain.state.EncryptedKeywordLocationMap;
 
 public final class InitializationMaterial {
 
     private final SecretKey masterKey;
     private final RSAPublicKey trapdoorPublicKey;
     private final RSAPrivateKey trapdoorPrivateKey;
-    private final EncryptedKeywordAddressMap encryptedKeywordAddressMap;
+    private final EncryptedKeywordLocationMap encryptedKeywordLocationMap;
 
     public InitializationMaterial(SecretKey masterKey, RSAPublicKey trapdoorPublicKey,
                                   RSAPrivateKey trapdoorPrivateKey,
-                                  EncryptedKeywordAddressMap encryptedKeywordAddressMap) {
+                                  EncryptedKeywordLocationMap encryptedKeywordLocationMap) {
         if (masterKey == null || trapdoorPublicKey == null || trapdoorPrivateKey == null
-                || encryptedKeywordAddressMap == null) {
+                || encryptedKeywordLocationMap == null) {
             throw new IllegalArgumentException("masterKey, trapdoor keys, and encrypted keyword map cannot be null");
         }
         this.masterKey = masterKey;
         this.trapdoorPublicKey = trapdoorPublicKey;
         this.trapdoorPrivateKey = trapdoorPrivateKey;
-        this.encryptedKeywordAddressMap = encryptedKeywordAddressMap;
+        this.encryptedKeywordLocationMap = encryptedKeywordLocationMap;
     }
 
     public SecretKey masterKey() {
@@ -39,7 +39,7 @@ public final class InitializationMaterial {
         return trapdoorPrivateKey;
     }
 
-    public EncryptedKeywordAddressMap encryptedKeywordAddressMap() {
-        return encryptedKeywordAddressMap;
+    public EncryptedKeywordLocationMap encryptedKeywordLocationMap() {
+        return encryptedKeywordLocationMap;
     }
 }
