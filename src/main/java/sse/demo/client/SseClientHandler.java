@@ -60,7 +60,6 @@ public final class SseClientHandler {
             ConfidentialClientAdapter.StateRequestResult stateRequest = adapter.requestState();
             State state = stateRequest.state();
             SecretKey masterKey = stateRequest.masterKey();
-
             Integer keywordLocation = sseClientFacade.resolveKeywordLocation(masterKey, state, normalizedKeyword);
             if (keywordLocation == null) {
                 throw new IllegalArgumentException("keyword is outside the vocabulary: " + keyword);
@@ -85,18 +84,31 @@ public final class SseClientHandler {
         if (update == null) {
             throw new IllegalArgumentException("update cannot be null");
         }
+        String normalizedKeyword = sseClientFacade.normalizeKeyword(update.keyword());
+        if (normalizedKeyword == null || normalizedKeyword.isEmpty()) {
+            throw new IllegalArgumentException("keyword cannot be normalized: " + update.keyword());
+        }
 
         while (true) {
             ConfidentialClientAdapter.StateRequestResult stateRequest = adapter.requestState();
             State state = stateRequest.state();
             SecretKey masterKey = stateRequest.masterKey();
             RSAPrivateKey trapdoorPrivateKey = stateRequest.trapdoorPrivateKey();
+            Integer keywordLocation = sseClientFacade.resolveKeywordLocation(masterKey, state, normalizedKeyword);
+            if (keywordLocation == null) {
+                throw new IllegalArgumentException("keyword is outside the vocabulary: " + update.keyword());
+            }
+            KeywordUpdate canonicalUpdate = new KeywordUpdate(
+                    normalizedKeyword,
+                    update.docIds(),
+                    update.operation()
+            );
 
             PreparedUpdateRequest preparedUpdateRequest = sseClientFacade.prepareUpdateRequest(
                     masterKey,
                     trapdoorPrivateKey,
                     state,
-                    update
+                    canonicalUpdate
             );
 
             SecretKey[] tupleKeys = preparedUpdateRequest.tupleKeys()

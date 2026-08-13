@@ -144,11 +144,24 @@ public final class PopulateDBHandler {
 
     private SentBatch sendKeywordBatch(KeywordUpdate update,
                                        SecretKey masterKey, RSAPrivateKey trapdoorPrivateKey, State currentState) {
+        String normalizedKeyword = sseClientFacade.normalizeKeyword(update.keyword());
+        if (normalizedKeyword == null || normalizedKeyword.isEmpty()) {
+            throw new IllegalArgumentException("keyword cannot be normalized: " + update.keyword());
+        }
+        Integer keywordLocation = sseClientFacade.resolveKeywordLocation(masterKey, currentState, normalizedKeyword);
+        if (keywordLocation == null) {
+            throw new IllegalArgumentException("keyword is outside the vocabulary: " + update.keyword());
+        }
+        KeywordUpdate canonicalUpdate = new KeywordUpdate(
+                normalizedKeyword,
+                update.docIds(),
+                update.operation()
+        );
         PreparedUpdateRequest preparedUpdateRequest = sseClientFacade.prepareUpdateRequest(
                 masterKey,
                 trapdoorPrivateKey,
                 currentState,
-                update
+                canonicalUpdate
         );
 
         if (preparedUpdateRequest.updateToken().items().size() != preparedUpdateRequest.tupleKeys().size()) {
