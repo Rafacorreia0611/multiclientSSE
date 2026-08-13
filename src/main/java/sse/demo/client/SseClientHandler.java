@@ -51,15 +51,25 @@ public final class SseClientHandler {
     }
 
     public List<String> search(String keyword) {
+        String normalizedKeyword = sseClientFacade.normalizeKeyword(keyword);
+        if (normalizedKeyword == null || normalizedKeyword.isEmpty()) {
+            throw new IllegalArgumentException("keyword cannot be normalized: " + keyword);
+        }
+
         while (true) {
             ConfidentialClientAdapter.StateRequestResult stateRequest = adapter.requestState();
             State state = stateRequest.state();
             SecretKey masterKey = stateRequest.masterKey();
 
+            Integer keywordLocation = sseClientFacade.resolveKeywordLocation(masterKey, state, normalizedKeyword);
+            if (keywordLocation == null) {
+                throw new IllegalArgumentException("keyword is outside the vocabulary: " + keyword);
+            }
+
             SearchToken searchToken = sseClientFacade.generateSearchToken(
                     masterKey,
                     state,
-                    keyword
+                    normalizedKeyword
             );
             if (searchToken == null) {
                 return Collections.emptyList();

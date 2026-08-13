@@ -74,7 +74,13 @@ public final class InteractiveClient {
             return;
         }
 
-        List<String> docIds = client.search(keyword);
+        List<String> docIds;
+        try {
+            docIds = client.search(keyword);
+        } catch (IllegalArgumentException e) {
+            System.out.println("Invalid search: " + e.getMessage());
+            return;
+        }
         if (docIds.isEmpty()) {
             System.out.println("No results for '" + keyword + "'.");
             return;

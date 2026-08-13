@@ -28,6 +28,7 @@ import sse.domain.update.PreparedUpdateRequest;
 import sse.domain.search.SearchToken;
 import sse.domain.state.State;
 import sse.domain.update.UpdateTuple;
+import sse.service.client.KeywordLocationService;
 import sse.service.client.SearchTokenService;
 import sse.service.client.UpdateTokenService;
 import sse.vocabulary.LuceneKeywordNormalizer;
@@ -37,10 +38,12 @@ public final class SseClientFacade {
 
     private final SearchTokenService searchTokenService;
     private final UpdateTokenService updateTokenService;
+    private final KeywordLocationService keywordLocationService;
 
     public SseClientFacade() {
         this.searchTokenService = new SearchTokenService();
         this.updateTokenService = new UpdateTokenService();
+        this.keywordLocationService = new KeywordLocationService();
     }
 
     public InitializationMaterial generateInitialStateData() {
@@ -73,6 +76,14 @@ public final class SseClientFacade {
 
     public SearchToken generateSearchToken(SecretKey masterKey, State state, String keyword) {
         return searchTokenService.generateSearchToken(masterKey, state, keyword);
+    }
+
+    public String normalizeKeyword(String rawKeyword) {
+        return keywordLocationService.normalizeKeyword(rawKeyword);
+    }
+
+    public Integer resolveKeywordLocation(SecretKey masterKey, State state, String normalizedKeyword) {
+        return keywordLocationService.resolveLocation(masterKey, state, normalizedKeyword);
     }
 
     public PreparedUpdateRequest prepareUpdateRequest(SecretKey masterKey, RSAPrivateKey trapdoorPrivateKey,
