@@ -43,6 +43,10 @@ public final class ConfidentialClientAdapter {
         this.service = new ConfidentialServiceProxy(clientId);
     }
 
+    public int clientId() {
+        return clientId;
+    }
+
     public void close() {
         service.close();
     }

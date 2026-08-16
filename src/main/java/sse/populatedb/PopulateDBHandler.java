@@ -13,7 +13,7 @@ import javax.crypto.SecretKey;
 import sse.dataset.KeywordDocIdsEntry;
 import sse.dataset.KeywordDocIdsReader;
 import sse.demo.client.ConfidentialClientAdapter;
-import sse.domain.setup.InitializationMaterial;
+import sse.demo.client.SseInitCoordinator;
 import sse.domain.state.KeywordState;
 import sse.domain.id.KeywordToken;
 import sse.domain.update.KeywordUpdate;
@@ -21,18 +21,22 @@ import sse.domain.update.PreparedUpdateRequest;
 import sse.domain.state.State;
 import sse.domain.update.UpdateOp;
 import sse.facade.SseClientFacade;
+import sse.oram.ORAMAdapter;
+import sse.oram.ORAMSettings;
 import sse.vocabulary.VocabularyLoader;
 
-public final class PopulateDBHandler {
+public final class PopulateDBHandler implements AutoCloseable {
 
     private static final int DEFAULT_BATCH_SIZE = 250;
     private static final long PROGRESS_LOG_INTERVAL_MS = 2_000L;
 
     private final ConfidentialClientAdapter adapter;
     private final SseClientFacade sseClientFacade;
+    private final ORAMSettings oramSettings;
+    private final ORAMAdapter oramAdapter;
+    private final SseInitCoordinator initCoordinator;
     private final KeywordDocIdsReader datasetReader;
     private final int batchSize;
-    private final Path vocabularyPath;
 
     public PopulateDBHandler(ConfidentialClientAdapter adapter) {
         this(adapter, DEFAULT_BATCH_SIZE);
@@ -54,25 +58,27 @@ public final class PopulateDBHandler {
         }
         this.adapter = adapter;
         this.sseClientFacade = new SseClientFacade();
+        this.oramSettings = ORAMSettings.defaults();
+        this.oramAdapter = new ORAMAdapter(
+                oramSettings,
+                ORAMSettings.oramClientIdFor(adapter.clientId())
+        );
+        this.initCoordinator = new SseInitCoordinator(
+                adapter,
+                sseClientFacade,
+                vocabularyPath,
+                oramSettings,
+                oramAdapter
+        );
         this.datasetReader = new KeywordDocIdsReader();
         this.batchSize = batchSize;
-        this.vocabularyPath = vocabularyPath;
     }
 
     public PopulationSummary populate(Path inputPath) {
         boolean setupStarted = false;
         boolean completed = false;
         try (BufferedReader reader = datasetReader.openReader(inputPath)) {
-            if (adapter.isInitialized()) {
-                System.out.println("State already initialized.");
-            } else {
-                InitializationMaterial initializationMaterial = sseClientFacade.generateInitialStateData(vocabularyPath);
-                if (adapter.sendInitializeStateRequest(initializationMaterial)) {
-                    System.out.println("State initialized.");
-                } else {
-                    System.out.println("State was initialized by another client.");
-                }
-            }
+            initCoordinator.initializeOrConnect();
 
             ConfidentialClientAdapter.StateRequestResult stateRequest = adapter.requestSetupState();
             setupStarted = true;
@@ -227,6 +233,11 @@ public final class PopulateDBHandler {
         } catch (RuntimeException e) {
             System.err.println("PopulateDB failed to signal setup abort: " + e.getMessage());
         }
+    }
+
+    @Override
+    public void close() {
+        oramAdapter.close();
     }
 
     public static final class PopulationSummary {

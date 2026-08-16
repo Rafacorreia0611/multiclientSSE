@@ -64,6 +64,7 @@ public final class UpdateLatencyByAssociationsScenario implements BenchmarkScena
             runMeasurement(clientHandler, measurePayloads.get(0), resultWriter);
         } finally {
             clientHandler.close();
+            adapter.close();
         }
     }
 

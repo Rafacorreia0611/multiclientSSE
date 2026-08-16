@@ -9,45 +9,52 @@ import java.util.Map;
 import javax.crypto.SecretKey;
 
 import sse.domain.update.EncryptedUpdateTuple;
-import sse.domain.setup.InitializationMaterial;
 import sse.domain.update.KeywordUpdate;
 import sse.domain.update.PreparedUpdateRequest;
 import sse.domain.search.SearchToken;
 import sse.domain.state.State;
 import sse.facade.SseClientFacade;
+import sse.oram.ORAMAdapter;
+import sse.oram.ORAMSettings;
 import sse.vocabulary.VocabularyLoader;
 
 public final class SseClientHandler {
 
     private final ConfidentialClientAdapter adapter;
     private final SseClientFacade sseClientFacade;
-    private final Path vocabularyPath;
+    private final ORAMSettings oramSettings;
+    private final ORAMAdapter oramAdapter;
+    private final SseInitCoordinator initCoordinator;
 
     public SseClientHandler(ConfidentialClientAdapter adapter) {
         this(adapter, VocabularyLoader.DEFAULT_VOCABULARY_PATH);
     }
 
     public SseClientHandler(ConfidentialClientAdapter adapter, Path vocabularyPath) {
+        if (adapter == null) {
+            throw new IllegalArgumentException("adapter cannot be null");
+        }
         if (vocabularyPath == null) {
             throw new IllegalArgumentException("vocabularyPath cannot be null");
         }
         this.adapter = adapter;
         this.sseClientFacade = new SseClientFacade();
-        this.vocabularyPath = vocabularyPath;
+        this.oramSettings = ORAMSettings.defaults();
+        this.oramAdapter = new ORAMAdapter(
+                oramSettings,
+                ORAMSettings.oramClientIdFor(adapter.clientId())
+        );
+        this.initCoordinator = new SseInitCoordinator(
+                adapter,
+                sseClientFacade,
+                vocabularyPath,
+                oramSettings,
+                oramAdapter
+        );
     }
 
     public void initializeState() {
-        if (adapter.isInitialized()) {
-            System.out.println("State already initialized.");
-            return;
-        }
-
-        InitializationMaterial initializationMaterial = sseClientFacade.generateInitialStateData(vocabularyPath);
-        if (adapter.sendInitializeStateRequest(initializationMaterial)) {
-            System.out.println("State initialized.");
-        } else {
-            System.out.println("State was initialized by another client.");
-        }
+        initCoordinator.initializeOrConnect();
     }
 
     public List<String> search(String keyword) {
@@ -120,6 +127,6 @@ public final class SseClientHandler {
     }
 
     public void close() {
-        adapter.close();
+        oramAdapter.close();
     }
 }

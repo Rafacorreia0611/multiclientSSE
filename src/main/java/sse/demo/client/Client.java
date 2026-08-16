@@ -48,15 +48,26 @@ public class Client {
             if (clientHandler != null) {
                 clientHandler.close();
             }
+            if (clientAdapter != null) {
+                clientAdapter.close();
+            }
         }
 
     }
 
     private static int parseClientId(String rawValue) {
+        return parseNonNegativeInteger(rawValue, "client ID");
+    }
+
+    private static int parseNonNegativeInteger(String rawValue, String optionName) {
         try {
-            return Integer.parseInt(rawValue);
+            int value = Integer.parseInt(rawValue);
+            if (value < 0) {
+                throw new IllegalArgumentException(optionName + " cannot be negative");
+            }
+            return value;
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Invalid client ID: " + rawValue + ". " + USAGE, e);
+            throw new IllegalArgumentException("Invalid " + optionName + ": " + rawValue + ". " + USAGE, e);
         }
     }
 

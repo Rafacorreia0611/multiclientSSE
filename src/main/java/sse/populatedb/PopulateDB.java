@@ -44,9 +44,10 @@ public final class PopulateDB {
         validateInputPath(inputPath);
 
         ConfidentialClientAdapter adapter = null;
+        PopulateDBHandler populateDBHandler = null;
         try {
             adapter = new ConfidentialClientAdapter(clientId);
-            PopulateDBHandler populateDBHandler = new PopulateDBHandler(adapter, batchSize, vocabularyPath);
+            populateDBHandler = new PopulateDBHandler(adapter, batchSize, vocabularyPath);
             PopulateDBHandler.PopulationSummary summary = populateDBHandler.populate(inputPath);
             System.out.println("PopulateDB finished.");
             System.out.println("Processed keywords: " + summary.processedKeywords());
@@ -55,6 +56,9 @@ public final class PopulateDB {
         } catch (SecretSharingException e) {
             throw new RuntimeException("Error creating PopulateDB client", e);
         } finally {
+            if (populateDBHandler != null) {
+                populateDBHandler.close();
+            }
             if (adapter != null) {
                 adapter.close();
             }

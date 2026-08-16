@@ -93,6 +93,10 @@ task localDeploy(dependsOn: installDist) {
                 from src
                 into target
             }
+            copy {
+                from 'datasets/vocabulary'
+                into target + fileSeparator + 'datasets' + fileSeparator + 'vocabulary'
+            }
         }
     }
 }

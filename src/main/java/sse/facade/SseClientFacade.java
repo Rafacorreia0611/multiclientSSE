@@ -22,6 +22,7 @@ import sse.crypto.TrapdoorPermutation;
 import sse.domain.state.EncryptedKeywordLocationMap;
 import sse.domain.update.EncryptedUpdateTuple;
 import sse.domain.setup.InitializationMaterial;
+import sse.domain.setup.PreparedInitialization;
 import sse.domain.state.KeywordLocationMap;
 import sse.domain.update.KeywordUpdate;
 import sse.domain.update.PreparedUpdateRequest;
@@ -46,24 +47,26 @@ public final class SseClientFacade {
         this.keywordLocationService = new KeywordLocationService();
     }
 
-    public InitializationMaterial generateInitialStateData() {
-        return generateInitialStateData(VocabularyLoader.DEFAULT_VOCABULARY_PATH);
-    }
-
-    public InitializationMaterial generateInitialStateData(Path vocabularyPath) {
+    public PreparedInitialization prepareInitialization(Path vocabularyPath) {
         if (vocabularyPath == null) {
             throw new IllegalArgumentException("vocabularyPath cannot be null");
         }
 
         SecretKey masterKey = generateMasterKey();
         KeyPair trapdoorKeyPair = TrapdoorPermutation.generateKeyPair();
+
+        KeywordLocationMap keywordLocationMap = generateKeywordLocationMap(vocabularyPath);
         EncryptedKeywordLocationMap encryptedKeywordLocationMap =
-                generateEncryptedKeywordLocationMap(masterKey, vocabularyPath);
-        return new InitializationMaterial(
-                masterKey,
-                (RSAPublicKey) trapdoorKeyPair.getPublic(),
-                (RSAPrivateKey) trapdoorKeyPair.getPrivate(),
-                encryptedKeywordLocationMap
+                encryptKeywordLocationMap(masterKey, keywordLocationMap);
+
+        return new PreparedInitialization(
+                new InitializationMaterial(
+                        masterKey,
+                        (RSAPublicKey) trapdoorKeyPair.getPublic(),
+                        (RSAPrivateKey) trapdoorKeyPair.getPrivate(),
+                        encryptedKeywordLocationMap
+                ),
+                keywordLocationMap.oramCapacity()
         );
     }
 
@@ -111,10 +114,14 @@ public final class SseClientFacade {
         return keyGen.generateKey();
     }
 
-    private EncryptedKeywordLocationMap generateEncryptedKeywordLocationMap(SecretKey masterKey, Path vocabularyPath) {
+    private KeywordLocationMap generateKeywordLocationMap(Path vocabularyPath) {
         VocabularyLoader vocabularyLoader = new VocabularyLoader(new LuceneKeywordNormalizer());
         List<String> keywords = vocabularyLoader.load(vocabularyPath);
-        KeywordLocationMap keywordLocationMap = KeywordLocationMap.build(keywords);
+        return KeywordLocationMap.build(keywords);
+    }
+
+    private EncryptedKeywordLocationMap encryptKeywordLocationMap(SecretKey masterKey,
+                                                                  KeywordLocationMap keywordLocationMap) {
         SecretKey keywordMapKey = KeywordLocationMapEncryption.deriveKey(masterKey);
         return KeywordLocationMapEncryption.encrypt(
                 keywordMapKey,

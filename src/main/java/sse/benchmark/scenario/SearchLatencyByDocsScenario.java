@@ -51,6 +51,7 @@ public final class SearchLatencyByDocsScenario implements BenchmarkScenario {
             runMeasurements(clientHandler, entriesByBucket, config, resultWriter);
         } finally {
             clientHandler.close();
+            adapter.close();
         }
     }
 
