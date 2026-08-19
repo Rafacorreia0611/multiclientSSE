@@ -39,10 +39,17 @@ distributions {
 
 remotes {
     master {
-        host = '<host ip>'
-        user = '<host user>'
-        password = '<host password>'
-        //identity=file("<ssh private key file>")
+		//Create a gradle.properties and set the following properties: remoteDeployMasterHost, remoteDeployMasterUser,
+		// remoteDeployMasterPrivateKeyFile
+		if (project.hasProperty("remoteDeployMasterHost")) {
+			host = remoteDeployMasterHost
+		}
+		if (project.hasProperty("remoteDeployMasterUser")) {
+			user = remoteDeployMasterUser
+		}
+		if (project.hasProperty("remoteDeployMasterPrivateKeyFile")) {
+			identity = file(remoteDeployMasterPrivateKeyFile)
+		}
     }
 }
 
@@ -72,9 +79,9 @@ task localDeploy(dependsOn: installDist) {
         int nServers = parsePositiveCount('servers', 4)
         int nClients = parsePositiveCount('clients', 1)
 
-        def fileSeparator = System.getProperty("file.separator")
-        def src = project.buildDir.name + fileSeparator + "install" + fileSeparator + project.name
-        def workingDirectory = project.buildDir.name + fileSeparator + "local" + fileSeparator
+		def fileSeparator = System.getProperty("file.separator")
+		def src = project.buildDir.name + fileSeparator + "install" + fileSeparator + project.name
+		def workingDirectory = project.buildDir.name + fileSeparator + "local" + fileSeparator
 
         println ("Deploying project into ${workingDirectory}")
         println ("Servers: ${nServers}, clients: ${nClients}")

@@ -34,3 +34,6 @@ multiclientSSE-hosts-nodes
 
 # Ignore macOS Finder metadata
 .DS_Store
+
+# Ignore local Gradle deployment properties
+/gradle.properties

@@ -73,7 +73,7 @@ public final class ConfidentialClientAdapter {
         try {
             Response response = service.invokeOrdered(serialize(RequestType.IS_INITIALIZED, null));
             ensureResponsePresent(response, "IS_INITIALIZED request");
-            byte[] plainResponse = response.getPainData();
+            byte[] plainResponse = response.getPlainData();
             if (plainResponse == null || plainResponse.length < 2) {
                 throw new RuntimeException("Initialization status response missing from server");
             }
@@ -101,7 +101,7 @@ public final class ConfidentialClientAdapter {
             try {
                 Response response = service.invokeOrdered(serialize(requestType, null));
                 ensureResponsePresent(response, requestType + " operation");
-                byte[] plainResponse = response.getPainData();
+                byte[] plainResponse = response.getPlainData();
                 if (plainResponse == null || plainResponse.length == 0) {
                     throw new RuntimeException("State response missing from server");
                 }
@@ -145,7 +145,7 @@ public final class ConfidentialClientAdapter {
         try {
             Response response = service.invokeOrdered(requestData);
             ensureResponsePresent(response, "SEARCH request");
-            byte[] plainResponse = response.getPainData();
+            byte[] plainResponse = response.getPlainData();
             if (plainResponse == null || plainResponse.length == 0) {
                 throw new RuntimeException("Response status missing from server");
             }
@@ -224,7 +224,7 @@ public final class ConfidentialClientAdapter {
         }
 
         ensureResponsePresent(response, requestType + " request");
-        byte[] plainResponse = response.getPainData();
+        byte[] plainResponse = response.getPlainData();
         if (plainResponse == null || plainResponse.length == 0) {
             throw new RuntimeException("Response status missing from server");
         }

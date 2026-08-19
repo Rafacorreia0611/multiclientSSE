@@ -1,6 +1,7 @@
 package confidential.client;
 
-import bftsmart.tom.ServiceProxy;
+import bftsmart.tom.ExtendedServiceProxy;
+import bftsmart.tom.util.ServiceResponse;
 import confidential.Configuration;
 import confidential.ExtractedResponse;
 import confidential.MessageType;
@@ -24,29 +25,65 @@ import java.util.Map;
 
 public class ConfidentialServiceProxy {
     private final Logger logger = LoggerFactory.getLogger("confidential");
-    private final ServiceProxy service;
+    private final ExtendedServiceProxy service;
     private final ClientConfidentialityScheme confidentialityScheme;
     private final ServersResponseHandler serversResponseHandler;
     private final boolean isLinearCommitmentScheme;
     private final boolean isSendAllSharesTogether;
 
-    public ConfidentialServiceProxy(int clientId) throws SecretSharingException {
-        if (Configuration.getInstance().useTLSEncryption()) {
-            serversResponseHandler = new PlainServersResponseHandler();
-        } else {
-            serversResponseHandler = new EncryptedServersResponseHandler(clientId);
-        }
-        this.service = new ServiceProxy(clientId, null, serversResponseHandler,
-                serversResponseHandler, null);
+	public ConfidentialServiceProxy(int clientId) throws SecretSharingException {
+		this(clientId, null);
+	}
+
+    public ConfidentialServiceProxy(int clientId, ServersResponseHandler customServersResponseHandler) throws SecretSharingException {
+        if (customServersResponseHandler == null) {
+			if (Configuration.getInstance().useTLSEncryption()) {
+				serversResponseHandler = new PlainServersResponseHandler();
+			} else {
+				serversResponseHandler = new EncryptedServersResponseHandler(clientId);
+			}
+		} else {
+			serversResponseHandler = customServersResponseHandler;
+		}
+        this.service = new ExtendedServiceProxy(clientId, serversResponseHandler,
+                serversResponseHandler, serversResponseHandler);
         this.confidentialityScheme = new ClientConfidentialityScheme(service.getViewManager().getCurrentView());
         serversResponseHandler.setClientConfidentialityScheme(confidentialityScheme);
         isLinearCommitmentScheme = confidentialityScheme.isLinearCommitmentScheme();
         isSendAllSharesTogether = Configuration.getInstance().isSendAllSharesTogether();
     }
 
-    public Response invokeOrdered(byte[] plainData, byte[]... confidentialData) throws SecretSharingException {
+	public int getProcessId() {
+		return service.getProcessId();
+	}
+
+	public int getCurrentF() {
+		return service.getViewManager().getCurrentViewF();
+	}
+
+	public int getCurrentN() {
+		return service.getViewManager().getCurrentViewN();
+	}
+
+	public Response invokeOrdered(byte[] plainData, byte[]... confidentialData) throws SecretSharingException {
+		return invokeOrdered(plainData, Mode.LARGE_SECRET, confidentialData);
+	}
+
+	public Response invokeOrderedHashed(byte[] plainData, byte[]... confidentialData) throws SecretSharingException {
+		return invokeOrderedHashed(plainData, Mode.LARGE_SECRET, confidentialData);
+	}
+
+	public Response invokeUnordered(byte[] plainData, byte[]... confidentialData) throws SecretSharingException {
+		return invokeUnordered(plainData, Mode.LARGE_SECRET, confidentialData);
+	}
+
+	public Response invokeUnorderedHashed(byte[] plainData, byte[]... confidentialData) throws SecretSharingException {
+		return invokeUnorderedHashed(plainData, Mode.LARGE_SECRET, confidentialData);
+	}
+
+    public Response invokeOrdered(byte[] plainData, Mode mode, byte[]... confidentialData) throws SecretSharingException {
         serversResponseHandler.reset();
-        EncryptedPublishedShares[] shares = sharePrivateData(confidentialData);
+        EncryptedPublishedShares[] shares = sharePrivateData(mode, confidentialData);
         if (confidentialData.length != 0 && shares == null)
             return null;
         byte[] commonData = serializeCommonData(plainData, shares);
@@ -63,14 +100,38 @@ public class ConfidentialServiceProxy {
             }
         }
         byte metadata = (byte)(confidentialData.length == 0 ? Metadata.DOES_NOT_VERIFY.ordinal() : Metadata.VERIFY.ordinal());
-        byte[] response = service.invokeOrdered(commonData, privateData, metadata);
+        ServiceResponse response = service.invokeOrdered(commonData, privateData, metadata);
 
         return composeResponse(response);
     }
 
-    public Response invokeUnordered(byte[] plainData, byte[]... confidentialData) throws SecretSharingException {
+	public Response invokeOrderedHashed(byte[] plainData, Mode mode, byte[]... confidentialData) throws SecretSharingException {
+		serversResponseHandler.reset();
+		EncryptedPublishedShares[] shares = sharePrivateData(mode, confidentialData);
+		if (confidentialData.length != 0 && shares == null)
+			return null;
+		byte[] commonData = serializeCommonData(plainData, shares);
+		if (commonData == null)
+			return null;
+
+		Map<Integer, byte[]> privateData = null;
+		if (!isSendAllSharesTogether && confidentialData.length != 0) {
+			int[] servers = service.getViewManager().getCurrentViewProcesses();
+			privateData = new HashMap<>(servers.length);
+			for (int server : servers) {
+				byte[] b = serializePrivateDataFor(server, shares);
+				privateData.put(server, b);
+			}
+		}
+		byte metadata = (byte)(confidentialData.length == 0 ? Metadata.DOES_NOT_VERIFY.ordinal() : Metadata.VERIFY.ordinal());
+		ServiceResponse response = service.invokeOrderedHashed(commonData, privateData, metadata);
+
+		return composeResponse(response);
+	}
+
+    public Response invokeUnordered(byte[] plainData, Mode mode, byte[]... confidentialData) throws SecretSharingException {
         serversResponseHandler.reset();
-        EncryptedPublishedShares[] shares = sharePrivateData(confidentialData);
+        EncryptedPublishedShares[] shares = sharePrivateData(mode, confidentialData);
         if (confidentialData.length != 0 && shares == null)
             return null;
         byte[] commonData = serializeCommonData(plainData, shares);
@@ -87,24 +148,47 @@ public class ConfidentialServiceProxy {
             }
         }
         byte metadata = (byte)(confidentialData.length == 0 ? Metadata.DOES_NOT_VERIFY.ordinal() : Metadata.VERIFY.ordinal());
-        byte[] response = service.invokeUnordered(commonData, privateData, metadata);
+        ServiceResponse response = service.invokeUnordered(commonData, privateData, metadata);
 
         return composeResponse(response);
     }
+
+	public Response invokeUnorderedHashed(byte[] plainData, Mode mode, byte[]... confidentialData) throws SecretSharingException {
+		serversResponseHandler.reset();
+		EncryptedPublishedShares[] shares = sharePrivateData(mode, confidentialData);
+		if (confidentialData.length != 0 && shares == null)
+			return null;
+		byte[] commonData = serializeCommonData(plainData, shares);
+		if (commonData == null)
+			return null;
+
+		Map<Integer, byte[]> privateData = null;
+		if (!isSendAllSharesTogether && confidentialData.length != 0) {
+			int[] servers = service.getViewManager().getCurrentViewProcesses();
+			privateData = new HashMap<>(servers.length);
+			for (int server : servers) {
+				byte[] b = serializePrivateDataFor(server, shares);
+				privateData.put(server, b);
+			}
+		}
+		byte metadata = (byte)(confidentialData.length == 0 ? Metadata.DOES_NOT_VERIFY.ordinal() : Metadata.VERIFY.ordinal());
+		ServiceResponse response = service.invokeUnorderedHashed(commonData, privateData, metadata);
+
+		return composeResponse(response);
+	}
 
     public void close() {
         service.close();
     }
 
-    private Response composeResponse(byte[] response) throws SecretSharingException {
-        if (response == null)
-            return null;
-        ExtractedResponse extractedResponse = ExtractedResponse.deserialize(response);
-        if (extractedResponse == null)
-            return null;
-        if (extractedResponse.getThrowable() != null)
-            throw extractedResponse.getThrowable();
-        return new Response(extractedResponse.getPlainData(), extractedResponse.getConfidentialData());
+    private Response composeResponse(ServiceResponse response) throws SecretSharingException {
+		if (response == null)
+			return null;
+		ExtractedResponse extractedResponse = (ExtractedResponse) response;
+
+		if (extractedResponse.getThrowable() != null)
+			throw extractedResponse.getThrowable();
+		return new Response(extractedResponse.getContent(), extractedResponse.getConfidentialData());
     }
 
     private byte[] serializePrivateDataFor(int server, EncryptedPublishedShares[] shares) {
@@ -177,12 +261,12 @@ public class ConfidentialServiceProxy {
         }
     }
 
-    private EncryptedPublishedShares[] sharePrivateData(byte[]... privateData) throws SecretSharingException {
+    private EncryptedPublishedShares[] sharePrivateData(Mode mode, byte[]... privateData) throws SecretSharingException {
         if (privateData == null)
             return null;
         EncryptedPublishedShares[] result = new EncryptedPublishedShares[privateData.length];
         for (int i = 0; i < privateData.length; i++) {
-            result[i] = confidentialityScheme.share(privateData[i], Mode.LARGE_SECRET);
+            result[i] = confidentialityScheme.share(privateData[i], mode);
         }
         return result;
     }
