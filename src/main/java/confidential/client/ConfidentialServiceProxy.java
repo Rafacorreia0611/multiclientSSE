@@ -1,6 +1,5 @@
 package confidential.client;
 
-import bftsmart.tom.ExtendedServiceProxy;
 import bftsmart.tom.util.ServiceResponse;
 import confidential.Configuration;
 import confidential.ExtractedResponse;
@@ -25,17 +24,26 @@ import java.util.Map;
 
 public class ConfidentialServiceProxy {
     private final Logger logger = LoggerFactory.getLogger("confidential");
-    private final ExtendedServiceProxy service;
+    private final ConfigurableServiceProxy service;
     private final ClientConfidentialityScheme confidentialityScheme;
     private final ServersResponseHandler serversResponseHandler;
     private final boolean isLinearCommitmentScheme;
     private final boolean isSendAllSharesTogether;
 
 	public ConfidentialServiceProxy(int clientId) throws SecretSharingException {
-		this(clientId, null);
+		this(clientId, (ServersResponseHandler) null);
+	}
+
+	public ConfidentialServiceProxy(int clientId, String configHome) throws SecretSharingException {
+		this(clientId, configHome, null);
 	}
 
     public ConfidentialServiceProxy(int clientId, ServersResponseHandler customServersResponseHandler) throws SecretSharingException {
+		this(clientId, null, customServersResponseHandler);
+    }
+
+    private ConfidentialServiceProxy(int clientId, String configHome, ServersResponseHandler customServersResponseHandler)
+			throws SecretSharingException {
         if (customServersResponseHandler == null) {
 			if (Configuration.getInstance().useTLSEncryption()) {
 				serversResponseHandler = new PlainServersResponseHandler();
@@ -45,8 +53,8 @@ public class ConfidentialServiceProxy {
 		} else {
 			serversResponseHandler = customServersResponseHandler;
 		}
-        this.service = new ExtendedServiceProxy(clientId, serversResponseHandler,
-                serversResponseHandler, serversResponseHandler);
+		this.service = new ConfigurableServiceProxy(clientId, configHome, serversResponseHandler,
+				serversResponseHandler, serversResponseHandler);
         this.confidentialityScheme = new ClientConfidentialityScheme(service.getViewManager().getCurrentView());
         serversResponseHandler.setClientConfidentialityScheme(confidentialityScheme);
         isLinearCommitmentScheme = confidentialityScheme.isLinearCommitmentScheme();

@@ -28,6 +28,11 @@ distributions {
                     include '**/*'
                 }
             }
+            into('oram_config') {
+                from('oram_config') {
+                    include '**/*'
+                }
+            }
             into('lib') {
                 from jar
                 from(configurations.runtimeClasspath)
@@ -77,6 +82,7 @@ task localDeploy(dependsOn: installDist) {
         }
 
         int nServers = parsePositiveCount('servers', 4)
+        int nOramServers = parsePositiveCount('oramServers', nServers)
         int nClients = parsePositiveCount('clients', 1)
 
 		def fileSeparator = System.getProperty("file.separator")
@@ -84,7 +90,7 @@ task localDeploy(dependsOn: installDist) {
 		def workingDirectory = project.buildDir.name + fileSeparator + "local" + fileSeparator
 
         println ("Deploying project into ${workingDirectory}")
-        println ("Servers: ${nServers}, clients: ${nClients}")
+        println ("SSE servers: ${nServers}, ORAM servers: ${nOramServers}, clients: ${nClients}")
 
         for (i in 0..<nServers) {
             def target = workingDirectory + "rep${i}"
@@ -94,12 +100,33 @@ task localDeploy(dependsOn: installDist) {
             }
         }
 
+        for (i in 0..<nOramServers) {
+            def target = workingDirectory + "oramRep${i}"
+            copy {
+                from src
+                into target
+            }
+            copy {
+                from src + fileSeparator + 'oram_config'
+                into target + fileSeparator + 'config'
+            }
+        }
+
         for (i in 0..<nClients) {
             def target = workingDirectory + "cli${i}"
             copy {
                 from src
                 into target
             }
+            copy {
+                from src + fileSeparator + 'config'
+                into target + fileSeparator + 'sse_config'
+            }
+            copy {
+                from src + fileSeparator + 'oram_config'
+                into target + fileSeparator + 'config'
+            }
+            delete target + fileSeparator + 'oram_config'
             copy {
                 from 'datasets/vocabulary'
                 into target + fileSeparator + 'datasets' + fileSeparator + 'vocabulary'

@@ -33,6 +33,7 @@ import vss.facade.SecretSharingException;
 
 public final class ConfidentialClientAdapter {
 
+    private static final String SSE_CONFIG_HOME = "sse_config";
     private static final long STATE_RETRY_DELAY_MS = 250L;
 
     private final ConfidentialServiceProxy service;
@@ -40,7 +41,7 @@ public final class ConfidentialClientAdapter {
 
     public ConfidentialClientAdapter(int clientId) throws SecretSharingException {
         this.clientId = clientId;
-        this.service = new ConfidentialServiceProxy(clientId);
+        this.service = new ConfidentialServiceProxy(clientId, SSE_CONFIG_HOME);
     }
 
     public int clientId() {
