@@ -9,9 +9,8 @@ public final class KeywordState implements Serializable {
 
     private final SearchTokenValue currentToken;
     private final int counter;
-    private final boolean locked;
 
-    public KeywordState(SearchTokenValue currentToken, int counter, boolean locked) {
+    public KeywordState(SearchTokenValue currentToken, int counter) {
         if (currentToken == null) {
             throw new IllegalArgumentException("currentToken cannot be null");
         }
@@ -20,7 +19,6 @@ public final class KeywordState implements Serializable {
         }
         this.currentToken = currentToken;
         this.counter = counter;
-        this.locked = locked;
     }
 
     public SearchTokenValue currentToken() {
@@ -31,24 +29,16 @@ public final class KeywordState implements Serializable {
         return counter;
     }
 
-    public boolean locked() {
-        return locked;
-    }
-
-    public KeywordState withLock(boolean locked) {
-        return new KeywordState(currentToken, counter, locked);
-    }
-
     public KeywordState withCurrentToken(SearchTokenValue currentToken) {
-        return new KeywordState(currentToken, counter, locked);
+        return new KeywordState(currentToken, counter);
     }
 
     public KeywordState withCounter(int counter) {
-        return new KeywordState(currentToken, counter, locked);
+        return new KeywordState(currentToken, counter);
     }
 
     public KeywordState advanceTo(SearchTokenValue currentToken) {
-        return new KeywordState(currentToken, counter + 1, locked);
+        return new KeywordState(currentToken, counter + 1);
     }
 
     @Override
@@ -61,13 +51,12 @@ public final class KeywordState implements Serializable {
         }
         KeywordState that = (KeywordState) o;
         return counter == that.counter
-                && locked == that.locked
                 && Objects.equals(currentToken, that.currentToken);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(currentToken, counter, locked);
+        return Objects.hash(currentToken, counter);
     }
 
     @Override
@@ -75,7 +64,6 @@ public final class KeywordState implements Serializable {
         return "KeywordState[" +
                 "currentToken=" + currentToken +
                 ", counter=" + counter +
-                ", locked=" + locked +
                 ']';
     }
 }

@@ -100,7 +100,7 @@ public final class UpdateTokenService {
             items.add(new UpdateTokenItem(address, encryptedTuple));
             tupleKeys.add(tupleKey);
 
-            keywordState = new KeywordState(nextToken, nextCounter, false);
+            keywordState = new KeywordState(nextToken, nextCounter);
         }
 
         return new PreparedUpdateRequest(new UpdateToken(items, keywordToken, keywordState), tupleKeys);
