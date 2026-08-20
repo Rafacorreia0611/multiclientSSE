@@ -17,9 +17,6 @@ public final class SnapshotService {
                         ? null
                         : TrapdoorPermutation.encodePublicKey(state.trapdoorPublicKey()),
                 state.encryptedKeywordLocationMap(),
-                state.activeClientId(),
-                state.blockedStateRequestsWhileActive(),
-                state.setupInProgress(),
                 state.invertedIndexStore().snapshot(),
                 state.keyShareStore().snapshotUpdateTupleShareOrder(),
                 state.keyShareStore().hasMasterKeyShare(),
@@ -47,9 +44,6 @@ public final class SnapshotService {
                 ? null
                 : TrapdoorPermutation.decodePublicKey(snapshotData.encodedTrapdoorPublicKey()));
         state.setEncryptedKeywordLocationMap(snapshotData.encryptedKeywordLocationMap());
-        state.setActiveClientId(snapshotData.activeClientId());
-        state.setBlockedStateRequestsWhileActive(snapshotData.blockedStateRequestsWhileActive());
-        state.setSetupInProgress(snapshotData.setupInProgress());
         state.invertedIndexStore().restore(snapshotData.invertedIndex());
         state.keyShareStore().restoreUpdateTupleShares(updateTupleShares);
         state.keyShareStore().setMasterKeyShare(masterKeyShare);

@@ -8,18 +8,12 @@ public final class SSEServerState {
 
     private RSAPublicKey trapdoorPublicKey;
     private EncryptedKeywordLocationMap encryptedKeywordLocationMap;
-    private int activeClientId;
-    private int blockedStateRequestsWhileActive;
-    private boolean setupInProgress;
     private final InvertedIndexStore invertedIndexStore;
     private final KeyShareStore keyShareStore;
 
     public SSEServerState() {
         this.trapdoorPublicKey = null;
         this.encryptedKeywordLocationMap = null;
-        this.activeClientId = -1;
-        this.blockedStateRequestsWhileActive = 0;
-        this.setupInProgress = false;
         this.invertedIndexStore = new InvertedIndexStore();
         this.keyShareStore = new KeyShareStore();
     }
@@ -38,30 +32,6 @@ public final class SSEServerState {
 
     public void setEncryptedKeywordLocationMap(EncryptedKeywordLocationMap encryptedKeywordLocationMap) {
         this.encryptedKeywordLocationMap = encryptedKeywordLocationMap;
-    }
-
-    public int activeClientId() {
-        return activeClientId;
-    }
-
-    public void setActiveClientId(int activeClientId) {
-        this.activeClientId = activeClientId;
-    }
-
-    public int blockedStateRequestsWhileActive() {
-        return blockedStateRequestsWhileActive;
-    }
-
-    public void setBlockedStateRequestsWhileActive(int blockedStateRequestsWhileActive) {
-        this.blockedStateRequestsWhileActive = blockedStateRequestsWhileActive;
-    }
-
-    public boolean setupInProgress() {
-        return setupInProgress;
-    }
-
-    public void setSetupInProgress(boolean setupInProgress) {
-        this.setupInProgress = setupInProgress;
     }
 
     public boolean isInitialized() {

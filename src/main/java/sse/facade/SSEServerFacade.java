@@ -62,36 +62,6 @@ public final class SSEServerFacade {
         return state.keyShareStore().trapdoorPrivateKeyShare();
     }
 
-    public int getActiveClientId() {
-        return state.activeClientId();
-    }
-
-    public void activateClient(int clientId, boolean setupInProgress) {
-        state.setActiveClientId(clientId);
-        state.setBlockedStateRequestsWhileActive(0);
-        state.setSetupInProgress(setupInProgress);
-    }
-
-    public void clearActiveClientId() {
-        state.setActiveClientId(-1);
-        state.setBlockedStateRequestsWhileActive(0);
-        state.setSetupInProgress(false);
-    }
-
-    public int incrementBlockedStateRequestsWhileActive() {
-        int nextValue = state.blockedStateRequestsWhileActive() + 1;
-        state.setBlockedStateRequestsWhileActive(nextValue);
-        return nextValue;
-    }
-
-    public void resetBlockedStateRequestsWhileActive() {
-        state.setBlockedStateRequestsWhileActive(0);
-    }
-
-    public boolean isSetupInProgress() {
-        return state.setupInProgress();
-    }
-
     public Boolean initializeState(byte[] encodedTrapdoorPublicKey,
                                    EncryptedKeywordLocationMap encryptedKeywordLocationMap,
                                    VerifiableShare masterKeyShare,

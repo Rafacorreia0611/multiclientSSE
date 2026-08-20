@@ -46,14 +46,13 @@ public final class ConfidentialServerAdapter implements ConfidentialSingleExecut
                     return handler.handleIsInitialized();
                 case SEARCH:
                     SearchToken searchToken = SearchToken.deserialize(readPayload(in));
-                    return handler.handleSearch(clientId, searchToken);
+                    return handler.handleSearch(searchToken);
                 case UPDATE:
                     UpdateToken updateToken = UpdateToken.deserialize(readPayload(in));
                     return handler.handleUpdate(clientId, updateToken, vss);
                 case STATE:
-                    return handler.handleState(clientId, false);
                 case SETUP_STATE:
-                    return handler.handleState(clientId, true);
+                    return handler.handleState();
                 case SETUP_COMPLETE:
                     return handler.handleSetupComplete(clientId);
                 case SETUP_ABORT:

@@ -22,9 +22,6 @@ import vss.secretsharing.VerifiableShare;
 public final class SSEPlainSnapshotData implements Serializable {
     private final byte[] encodedTrapdoorPublicKey;
     private final EncryptedKeywordLocationMap encryptedKeywordLocationMap;
-    private final int activeClientId;
-    private final int blockedStateRequestsWhileActive;
-    private final boolean setupInProgress;
     private final Map<IndexAddress, EncryptedUpdateTuple> invertedIndex;
     private final List<IndexAddress> updateTupleShareOrder;
     private final boolean hasMasterKeyShare;
@@ -32,18 +29,12 @@ public final class SSEPlainSnapshotData implements Serializable {
 
     public SSEPlainSnapshotData(byte[] encodedTrapdoorPublicKey,
                                 EncryptedKeywordLocationMap encryptedKeywordLocationMap,
-                                int activeClientId,
-                                int blockedStateRequestsWhileActive,
-                                boolean setupInProgress,
                                 Map<IndexAddress, EncryptedUpdateTuple> invertedIndex,
                                 List<IndexAddress> updateTupleShareOrder,
                                 boolean hasMasterKeyShare,
                                 boolean hasTrapdoorPrivateKeyShare) {
         this.encodedTrapdoorPublicKey = encodedTrapdoorPublicKey == null ? null : encodedTrapdoorPublicKey.clone();
         this.encryptedKeywordLocationMap = encryptedKeywordLocationMap;
-        this.activeClientId = activeClientId;
-        this.blockedStateRequestsWhileActive = blockedStateRequestsWhileActive;
-        this.setupInProgress = setupInProgress;
         this.invertedIndex = new LinkedHashMap<>(invertedIndex);
         this.updateTupleShareOrder = updateTupleShareOrder;
         this.hasMasterKeyShare = hasMasterKeyShare;
@@ -56,18 +47,6 @@ public final class SSEPlainSnapshotData implements Serializable {
 
     public EncryptedKeywordLocationMap encryptedKeywordLocationMap() {
         return encryptedKeywordLocationMap;
-    }
-
-    public int activeClientId() {
-        return activeClientId;
-    }
-
-    public int blockedStateRequestsWhileActive() {
-        return blockedStateRequestsWhileActive;
-    }
-
-    public boolean setupInProgress() {
-        return setupInProgress;
     }
 
     public Map<IndexAddress, EncryptedUpdateTuple> invertedIndex() {
@@ -158,10 +137,7 @@ public final class SSEPlainSnapshotData implements Serializable {
             return false;
         }
         SSEPlainSnapshotData that = (SSEPlainSnapshotData) o;
-        return activeClientId == that.activeClientId &&
-                blockedStateRequestsWhileActive == that.blockedStateRequestsWhileActive &&
-                setupInProgress == that.setupInProgress &&
-                hasMasterKeyShare == that.hasMasterKeyShare &&
+        return hasMasterKeyShare == that.hasMasterKeyShare &&
                 hasTrapdoorPrivateKeyShare == that.hasTrapdoorPrivateKeyShare &&
                 Arrays.equals(encodedTrapdoorPublicKey, that.encodedTrapdoorPublicKey) &&
                 Objects.equals(encryptedKeywordLocationMap, that.encryptedKeywordLocationMap) &&
@@ -171,8 +147,7 @@ public final class SSEPlainSnapshotData implements Serializable {
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(activeClientId, blockedStateRequestsWhileActive,
-                setupInProgress, encryptedKeywordLocationMap, invertedIndex, updateTupleShareOrder,
+        int result = Objects.hash(encryptedKeywordLocationMap, invertedIndex, updateTupleShareOrder,
                 hasMasterKeyShare, hasTrapdoorPrivateKeyShare);
         result = 31 * result + Arrays.hashCode(encodedTrapdoorPublicKey);
         return result;
@@ -184,9 +159,6 @@ public final class SSEPlainSnapshotData implements Serializable {
                 "encodedTrapdoorPublicKeyLength=" +
                 (encodedTrapPublicKeyLength()) +
                 ", encryptedKeywordLocationMap=" + encryptedKeywordLocationMap +
-                ", activeClientId=" + activeClientId +
-                ", blockedStateRequestsWhileActive=" + blockedStateRequestsWhileActive +
-                ", setupInProgress=" + setupInProgress +
                 ", invertedIndex=" + invertedIndex +
                 ", updateTupleShareOrder=" + updateTupleShareOrder +
                 ", hasMasterKeyShare=" + hasMasterKeyShare +
