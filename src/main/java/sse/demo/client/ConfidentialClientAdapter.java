@@ -129,7 +129,7 @@ public final class ConfidentialClientAdapter {
             }
             ResponseStatus responseStatus = ResponseStatus.getResponseStatus(Byte.toUnsignedInt(plainResponse[0]));
             if (responseStatus != ResponseStatus.OK) {
-                return null;
+                throw new RuntimeException("Unexpected search response status: " + responseStatus);
             }
 
             return deserializeSearchResults(

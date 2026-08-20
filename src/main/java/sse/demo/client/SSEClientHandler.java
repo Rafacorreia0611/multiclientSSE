@@ -66,29 +66,25 @@ public final class SSEClientHandler {
             throw new IllegalArgumentException("keyword cannot be normalized: " + keyword);
         }
 
-        while (true) {
-            ConfidentialClientAdapter.StateRequestResult stateRequest = adapter.requestState();
-            State state = stateRequest.state();
-            SecretKey masterKey = stateRequest.masterKey();
-            Integer keywordLocation = sseClientFacade.resolveKeywordLocation(masterKey, state, normalizedKeyword);
-            if (keywordLocation == null) {
-                throw new IllegalArgumentException("keyword is outside the vocabulary: " + keyword);
-            }
-
-            KeywordBlock keywordBlock = oramAdapter.readKeywordBlock(keywordLocation);
-            SearchToken searchToken = sseClientFacade.generateSearchToken(
-                    masterKey,
-                    keywordBlock.keywordState(),
-                    normalizedKeyword
-            );
-            if (searchToken == null) {
-                return Collections.emptyList();
-            }
-            Map<EncryptedUpdateTuple, SecretKey> searchResults = adapter.sendSearchRequest(searchToken);
-            if (searchResults != null) {
-                return sseClientFacade.extractAddedDocIds(searchResults);
-            }
+        ConfidentialClientAdapter.StateRequestResult stateRequest = adapter.requestState();
+        State state = stateRequest.state();
+        SecretKey masterKey = stateRequest.masterKey();
+        Integer keywordLocation = sseClientFacade.resolveKeywordLocation(masterKey, state, normalizedKeyword);
+        if (keywordLocation == null) {
+            throw new IllegalArgumentException("keyword is outside the vocabulary: " + keyword);
         }
+
+        KeywordBlock keywordBlock = oramAdapter.readKeywordBlock(keywordLocation);
+        SearchToken searchToken = sseClientFacade.generateSearchToken(
+                masterKey,
+                keywordBlock.keywordState(),
+                normalizedKeyword
+        );
+        if (searchToken == null) {
+            return Collections.emptyList();
+        }
+        Map<EncryptedUpdateTuple, SecretKey> searchResults = adapter.sendSearchRequest(searchToken);
+        return sseClientFacade.extractAddedDocIds(searchResults);
     }
 
     public void update(KeywordUpdate update) {
@@ -134,10 +130,11 @@ public final class SSEClientHandler {
                 SecretKey[] tupleKeys = preparedUpdateRequest.tupleKeys()
                         .toArray(new SecretKey[preparedUpdateRequest.tupleKeys().size()]);
                 updateCommitted = adapter.sendUpdateRequest(preparedUpdateRequest.updateToken(), tupleKeys);
-                if (updateCommitted) {
-                    oramAdapter.publishKeywordState(keywordLocation, preparedUpdateRequest.keywordState());
-                    return;
+                if (!updateCommitted) {
+                    throw new IllegalStateException("Server rejected update");
                 }
+                oramAdapter.publishKeywordState(keywordLocation, preparedUpdateRequest.keywordState());
+                return;
             } finally {
                 if (!updateCommitted) {
                     oramAdapter.releaseKeywordLock(keywordLocation);
