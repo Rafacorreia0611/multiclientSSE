@@ -1,18 +1,15 @@
 package sse.oram;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-
-import oram.client.MemoryUpdater;
 import oram.client.ORAMObject;
 import oram.client.manager.MultiServerORAMManager;
 import oram.client.manager.ORAMManager;
+import sse.domain.state.KeywordBlock;
+import sse.domain.state.KeywordState;
 
 public final class ORAMAdapter implements AutoCloseable {
 
     private static final long DEFAULT_RETRY_DELAY_MS = 250L;
     private static final long DEFAULT_WAIT_TIMEOUT_MS = 30_000L;
-    private static final int SMOKE_TEST_ADDRESS = 0;
 
     private final ORAMSettings settings;
     private final ORAMManager manager;
@@ -57,68 +54,46 @@ public final class ORAMAdapter implements AutoCloseable {
         throw new IllegalStateException("Timed out waiting for MVP-ORAM " + settings.oramId());
     }
 
-    public byte[] read(int address) {
+    public KeywordBlock readKeywordBlock(int address) {
         ensureConnected();
-        return oram.readMemory(address);
+        return KeywordBlock.deserialize(oram.readMemory(address));
     }
 
-    public byte[] write(int address, byte[] content) {
+    public KeywordBlock acquireKeywordLock(int address) {
         ensureConnected();
-        if (content == null) {
-            throw new IllegalArgumentException("content cannot be null");
-        }
-        return oram.writeMemory(address, content);
-    }
-
-    public byte[] update(int address, MemoryUpdater updater) {
-        ensureConnected();
-        if (updater == null) {
-            throw new IllegalArgumentException("updater cannot be null");
-        }
-        return oram.updateMemory(address, updater);
-    }
-
-    public void runSmokeTest() {
-        ensureConnected();
-
-        System.out.println("Running MVP-ORAM smoke test at address " + SMOKE_TEST_ADDRESS + "...");
-        byte[] firstValue = "mvp-oram-smoke".getBytes(StandardCharsets.UTF_8);
-        byte[] updatedValue = "mvp-oram-smoke-updated".getBytes(StandardCharsets.UTF_8);
-
-        byte[] oldValue = write(SMOKE_TEST_ADDRESS, firstValue);
-        System.out.println("ORAM smoke write old value: " + printable(oldValue));
-
-        byte[] readValue = read(SMOKE_TEST_ADDRESS);
-        System.out.println("ORAM smoke read value: " + printable(readValue));
-
-        byte[] previousValue = update(SMOKE_TEST_ADDRESS, new MemoryUpdater() {
-            @Override
-            public byte[] update(byte[] oldContent) {
-                return updatedValue;
+        byte[] oldContent = oram.updateMemory(address, currentContent -> {
+            KeywordBlock oldBlock = KeywordBlock.deserialize(currentContent);
+            if (oldBlock.locked()) {
+                return null;
             }
+            return oldBlock.withLock(true).serialize();
         });
-        System.out.println("ORAM smoke update previous value: " + printable(previousValue));
+        return KeywordBlock.deserialize(oldContent);
+    }
 
-        byte[] finalValue = read(SMOKE_TEST_ADDRESS);
-        System.out.println("ORAM smoke final value: " + printable(finalValue));
+    public KeywordBlock releaseKeywordLock(int address) {
+        ensureConnected();
+        byte[] oldContent = oram.updateMemory(address, currentContent -> {
+            KeywordBlock oldBlock = KeywordBlock.deserialize(currentContent);
+            return oldBlock.withLock(false).serialize();
+        });
+        return KeywordBlock.deserialize(oldContent);
+    }
 
-        if (!Arrays.equals(updatedValue, finalValue)) {
-            throw new IllegalStateException("MVP-ORAM smoke test failed");
+    public KeywordBlock publishKeywordState(int address, KeywordState keywordState) {
+        if (keywordState == null) {
+            throw new IllegalArgumentException("keywordState cannot be null");
         }
-        System.out.println("MVP-ORAM smoke test passed.");
+        ensureConnected();
+        byte[] oldContent = oram.updateMemory(address, currentContent ->
+                new KeywordBlock(false, keywordState).serialize());
+        return KeywordBlock.deserialize(oldContent);
     }
 
     private void ensureConnected() {
         if (oram == null) {
             throw new IllegalStateException("ORAM adapter is not connected");
         }
-    }
-
-    private String printable(byte[] value) {
-        if (value == null) {
-            return "null";
-        }
-        return new String(value, StandardCharsets.UTF_8);
     }
 
     private void sleep(long delayMs) {

@@ -55,12 +55,10 @@ public final class SseInitCoordinator {
         System.out.println("Creating MVP-ORAM from vocabulary capacity " + oramCapacity
                 + " using " + oramSettings + " and treeHeight=" + treeHeight);
         oramAdapter.create(treeHeight);
-        oramAdapter.runSmokeTest();
     }
 
     private void connectToExistingOram() {
         System.out.println("Waiting for existing MVP-ORAM id=" + oramSettings.oramId() + "...");
         oramAdapter.waitUntilAvailable();
-        oramAdapter.runSmokeTest();
     }
 }
