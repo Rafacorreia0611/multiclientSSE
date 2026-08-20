@@ -24,6 +24,7 @@ import sse.domain.update.EncryptedUpdateTuple;
 import sse.domain.setup.InitializationMaterial;
 import sse.domain.setup.PreparedInitialization;
 import sse.domain.state.KeywordLocationMap;
+import sse.domain.state.KeywordState;
 import sse.domain.update.KeywordUpdate;
 import sse.domain.update.PreparedUpdateRequest;
 import sse.domain.search.SearchToken;
@@ -77,8 +78,8 @@ public final class SseClientFacade {
         return searchTokenService.decryptUpdateTuple(key, iv, encryptedTuple);
     }
 
-    public SearchToken generateSearchToken(SecretKey masterKey, State state, String keyword) {
-        return searchTokenService.generateSearchToken(masterKey, state, keyword);
+    public SearchToken generateSearchToken(SecretKey masterKey, KeywordState keywordState, String keyword) {
+        return searchTokenService.generateSearchToken(masterKey, keywordState, keyword);
     }
 
     public String normalizeKeyword(String rawKeyword) {

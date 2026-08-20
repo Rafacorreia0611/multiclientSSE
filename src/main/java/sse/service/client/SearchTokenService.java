@@ -18,24 +18,17 @@ import sse.crypto.Prf;
 import sse.crypto.TupleEncryption;
 import sse.domain.update.EncryptedUpdateTuple;
 import sse.domain.state.KeywordState;
-import sse.domain.id.KeywordToken;
 import sse.domain.search.SearchToken;
-import sse.domain.state.State;
 import sse.domain.update.UpdateTuple;
 
 public final class SearchTokenService {
 
-    private static final String TOKEN_KEY_LABEL = "TokenKey";
     private static final String ADDRESS_KEY_LABEL = "AddressKey";
 
-    public SearchToken generateSearchToken(SecretKey masterKey, State state, String keyword) {
-        if (masterKey == null || state == null || keyword == null) {
-            throw new IllegalArgumentException("masterKey, state, and keyword cannot be null");
+    public SearchToken generateSearchToken(SecretKey masterKey, KeywordState keywordState, String keyword) {
+        if (masterKey == null || keyword == null) {
+            throw new IllegalArgumentException("masterKey and keyword cannot be null");
         }
-
-        byte[] tokenKey = Prf.prf(masterKey, TOKEN_KEY_LABEL);
-        KeywordToken keywordToken = new KeywordToken(Prf.prf(tokenKey, keyword));
-        KeywordState keywordState = state.keywordStates().get(keywordToken);
         if (keywordState == null) {
             return null;
         }

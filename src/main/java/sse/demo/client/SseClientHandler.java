@@ -12,6 +12,7 @@ import sse.domain.update.EncryptedUpdateTuple;
 import sse.domain.update.KeywordUpdate;
 import sse.domain.update.PreparedUpdateRequest;
 import sse.domain.search.SearchToken;
+import sse.domain.state.KeywordBlock;
 import sse.domain.state.State;
 import sse.facade.SseClientFacade;
 import sse.oram.ORAMAdapter;
@@ -72,9 +73,10 @@ public final class SseClientHandler {
                 throw new IllegalArgumentException("keyword is outside the vocabulary: " + keyword);
             }
 
+            KeywordBlock keywordBlock = oramAdapter.readKeywordBlock(keywordLocation);
             SearchToken searchToken = sseClientFacade.generateSearchToken(
                     masterKey,
-                    state,
+                    keywordBlock.keywordState(),
                     normalizedKeyword
             );
             if (searchToken == null) {
