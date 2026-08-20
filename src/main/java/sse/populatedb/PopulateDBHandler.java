@@ -4,9 +4,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.interfaces.RSAPrivateKey;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 import javax.crypto.SecretKey;
 
@@ -14,8 +12,7 @@ import sse.dataset.KeywordDocIdsEntry;
 import sse.dataset.KeywordDocIdsReader;
 import sse.demo.client.ConfidentialClientAdapter;
 import sse.demo.client.SseInitCoordinator;
-import sse.domain.state.KeywordState;
-import sse.domain.id.KeywordToken;
+import sse.domain.state.KeywordBlock;
 import sse.domain.update.KeywordUpdate;
 import sse.domain.update.PreparedUpdateRequest;
 import sse.domain.state.State;
@@ -29,6 +26,7 @@ public final class PopulateDBHandler implements AutoCloseable {
 
     private static final int DEFAULT_BATCH_SIZE = 250;
     private static final long PROGRESS_LOG_INTERVAL_MS = 2_000L;
+    private static final long LOCK_RETRY_DELAY_MS = 250L;
 
     private final ConfidentialClientAdapter adapter;
     private final SseClientFacade sseClientFacade;
@@ -107,7 +105,7 @@ public final class PopulateDBHandler implements AutoCloseable {
                 while (start < docIds.size()) {
                     int end = Math.min(start + batchSize, docIds.size());
                     List<String> batchDocIds = docIds.subList(start, end);
-                    SentBatch sentBatch = sendKeywordBatch(
+                    int sentDocIds = sendKeywordBatch(
                             new KeywordUpdate(
                                     entry.keyword(),
                                     batchDocIds,
@@ -117,8 +115,7 @@ public final class PopulateDBHandler implements AutoCloseable {
                             trapdoorPrivateKey,
                             currentState
                     );
-                    currentState = sentBatch.state();
-                    processedDocIds += sentBatch.sentDocIds();
+                    processedDocIds += sentDocIds;
                     sentBatches++;
                     start = end;
 
@@ -148,8 +145,8 @@ public final class PopulateDBHandler implements AutoCloseable {
         }
     }
 
-    private SentBatch sendKeywordBatch(KeywordUpdate update,
-                                       SecretKey masterKey, RSAPrivateKey trapdoorPrivateKey, State currentState) {
+    private int sendKeywordBatch(KeywordUpdate update,
+                                 SecretKey masterKey, RSAPrivateKey trapdoorPrivateKey, State currentState) {
         String normalizedKeyword = sseClientFacade.normalizeKeyword(update.keyword());
         if (normalizedKeyword == null || normalizedKeyword.isEmpty()) {
             throw new IllegalArgumentException("keyword cannot be normalized: " + update.keyword());
@@ -163,39 +160,45 @@ public final class PopulateDBHandler implements AutoCloseable {
                 update.docIds(),
                 update.operation()
         );
-        PreparedUpdateRequest preparedUpdateRequest = sseClientFacade.prepareUpdateRequest(
-                masterKey,
-                trapdoorPrivateKey,
-                currentState,
-                canonicalUpdate
-        );
 
-        if (preparedUpdateRequest.updateToken().items().size() != preparedUpdateRequest.tupleKeys().size()) {
-            throw new IllegalStateException("Update item/key count mismatch: items="
-                    + preparedUpdateRequest.updateToken().items().size()
-                    + ", keys=" + preparedUpdateRequest.tupleKeys().size());
+        while (true) {
+            KeywordBlock oldBlock = oramAdapter.acquireKeywordLock(keywordLocation);
+            if (oldBlock.locked()) {
+                sleepBeforeLockRetry();
+                continue;
+            }
+
+            boolean updateCommitted = false;
+            try {
+                PreparedUpdateRequest preparedUpdateRequest = sseClientFacade.prepareUpdateRequest(
+                        masterKey,
+                        trapdoorPrivateKey,
+                        currentState,
+                        oldBlock.keywordState(),
+                        canonicalUpdate
+                );
+
+                if (preparedUpdateRequest.updateToken().items().size() != preparedUpdateRequest.tupleKeys().size()) {
+                    throw new IllegalStateException("Update item/key count mismatch: items="
+                            + preparedUpdateRequest.updateToken().items().size()
+                            + ", keys=" + preparedUpdateRequest.tupleKeys().size());
+                }
+
+                SecretKey[] tupleKeys = preparedUpdateRequest.tupleKeys()
+                        .toArray(new SecretKey[preparedUpdateRequest.tupleKeys().size()]);
+                updateCommitted = adapter.sendUpdateRequest(preparedUpdateRequest.updateToken(), tupleKeys);
+                if (!updateCommitted) {
+                    throw new IllegalStateException("Server rejected update batch");
+                }
+
+                oramAdapter.publishKeywordState(keywordLocation, preparedUpdateRequest.keywordState());
+                return preparedUpdateRequest.updateToken().items().size();
+            } finally {
+                if (!updateCommitted) {
+                    oramAdapter.releaseKeywordLock(keywordLocation);
+                }
+            }
         }
-
-        SecretKey[] tupleKeys = preparedUpdateRequest.tupleKeys()
-                .toArray(new SecretKey[preparedUpdateRequest.tupleKeys().size()]);
-        if (!adapter.sendUpdateRequest(preparedUpdateRequest.updateToken(), tupleKeys)) {
-            throw new IllegalStateException("Server rejected update batch");
-        }
-
-        Map<KeywordToken, KeywordState> nextKeywordStates =
-                new LinkedHashMap<KeywordToken, KeywordState>(currentState.keywordStates());
-        nextKeywordStates.put(
-                preparedUpdateRequest.updateToken().updatedKeywordToken(),
-                preparedUpdateRequest.updateToken().updatedKeywordState()
-        );
-        return new SentBatch(
-                new State(
-                        nextKeywordStates,
-                        currentState.encodedTrapdoorPublicKey(),
-                        currentState.encryptedKeywordLocationMap()
-                ),
-                preparedUpdateRequest.updateToken().items().size()
-        );
     }
 
     private boolean shouldLogProgress(long lastProgressLogNanos, long nowNanos) {
@@ -223,6 +226,15 @@ public final class PopulateDBHandler implements AutoCloseable {
             return String.format("%dm%02ds", minutes, seconds);
         }
         return String.format("%ds", seconds);
+    }
+
+    private void sleepBeforeLockRetry() {
+        try {
+            Thread.sleep(LOCK_RETRY_DELAY_MS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while waiting to retry keyword lock", e);
+        }
     }
 
     private void attemptSetupAbort() {
@@ -264,21 +276,4 @@ public final class PopulateDBHandler implements AutoCloseable {
         }
     }
 
-    private static final class SentBatch {
-        private final State state;
-        private final int sentDocIds;
-
-        private SentBatch(State state, int sentDocIds) {
-            this.state = state;
-            this.sentDocIds = sentDocIds;
-        }
-
-        private State state() {
-            return state;
-        }
-
-        private int sentDocIds() {
-            return sentDocIds;
-        }
-    }
 }

@@ -21,6 +21,8 @@ import sse.vocabulary.VocabularyLoader;
 
 public final class SseClientHandler {
 
+    private static final long LOCK_RETRY_DELAY_MS = 250L;
+
     private final ConfidentialClientAdapter adapter;
     private final SseClientFacade sseClientFacade;
     private final ORAMSettings oramSettings;
@@ -98,33 +100,58 @@ public final class SseClientHandler {
             throw new IllegalArgumentException("keyword cannot be normalized: " + update.keyword());
         }
 
+        ConfidentialClientAdapter.StateRequestResult stateRequest = adapter.requestState();
+        State state = stateRequest.state();
+        SecretKey masterKey = stateRequest.masterKey();
+        RSAPrivateKey trapdoorPrivateKey = stateRequest.trapdoorPrivateKey();
+        Integer keywordLocation = sseClientFacade.resolveKeywordLocation(masterKey, state, normalizedKeyword);
+        if (keywordLocation == null) {
+            throw new IllegalArgumentException("keyword is outside the vocabulary: " + update.keyword());
+        }
+        KeywordUpdate canonicalUpdate = new KeywordUpdate(
+                normalizedKeyword,
+                update.docIds(),
+                update.operation()
+        );
+
         while (true) {
-            ConfidentialClientAdapter.StateRequestResult stateRequest = adapter.requestState();
-            State state = stateRequest.state();
-            SecretKey masterKey = stateRequest.masterKey();
-            RSAPrivateKey trapdoorPrivateKey = stateRequest.trapdoorPrivateKey();
-            Integer keywordLocation = sseClientFacade.resolveKeywordLocation(masterKey, state, normalizedKeyword);
-            if (keywordLocation == null) {
-                throw new IllegalArgumentException("keyword is outside the vocabulary: " + update.keyword());
+            KeywordBlock oldBlock = oramAdapter.acquireKeywordLock(keywordLocation);
+            if (oldBlock.locked()) {
+                sleepBeforeLockRetry();
+                continue;
             }
-            KeywordUpdate canonicalUpdate = new KeywordUpdate(
-                    normalizedKeyword,
-                    update.docIds(),
-                    update.operation()
-            );
 
-            PreparedUpdateRequest preparedUpdateRequest = sseClientFacade.prepareUpdateRequest(
-                    masterKey,
-                    trapdoorPrivateKey,
-                    state,
-                    canonicalUpdate
-            );
+            boolean updateCommitted = false;
+            try {
+                PreparedUpdateRequest preparedUpdateRequest = sseClientFacade.prepareUpdateRequest(
+                        masterKey,
+                        trapdoorPrivateKey,
+                        state,
+                        oldBlock.keywordState(),
+                        canonicalUpdate
+                );
 
-            SecretKey[] tupleKeys = preparedUpdateRequest.tupleKeys()
-                    .toArray(new SecretKey[preparedUpdateRequest.tupleKeys().size()]);
-            if (adapter.sendUpdateRequest(preparedUpdateRequest.updateToken(), tupleKeys)) {
-                return;
+                SecretKey[] tupleKeys = preparedUpdateRequest.tupleKeys()
+                        .toArray(new SecretKey[preparedUpdateRequest.tupleKeys().size()]);
+                updateCommitted = adapter.sendUpdateRequest(preparedUpdateRequest.updateToken(), tupleKeys);
+                if (updateCommitted) {
+                    oramAdapter.publishKeywordState(keywordLocation, preparedUpdateRequest.keywordState());
+                    return;
+                }
+            } finally {
+                if (!updateCommitted) {
+                    oramAdapter.releaseKeywordLock(keywordLocation);
+                }
             }
+        }
+    }
+
+    private void sleepBeforeLockRetry() {
+        try {
+            Thread.sleep(LOCK_RETRY_DELAY_MS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Interrupted while waiting to retry keyword lock", e);
         }
     }
 

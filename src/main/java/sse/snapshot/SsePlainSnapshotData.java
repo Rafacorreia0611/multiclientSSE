@@ -17,12 +17,9 @@ import java.util.Objects;
 import sse.domain.update.EncryptedUpdateTuple;
 import sse.domain.id.IndexAddress;
 import sse.domain.state.EncryptedKeywordLocationMap;
-import sse.domain.state.KeywordState;
-import sse.domain.id.KeywordToken;
 import vss.secretsharing.VerifiableShare;
 
 public final class SsePlainSnapshotData implements Serializable {
-    private final Map<KeywordToken, KeywordState> keywordStates;
     private final byte[] encodedTrapdoorPublicKey;
     private final EncryptedKeywordLocationMap encryptedKeywordLocationMap;
     private final int activeClientId;
@@ -33,8 +30,7 @@ public final class SsePlainSnapshotData implements Serializable {
     private final boolean hasMasterKeyShare;
     private final boolean hasTrapdoorPrivateKeyShare;
 
-    public SsePlainSnapshotData(Map<KeywordToken, KeywordState> keywordStates,
-                                byte[] encodedTrapdoorPublicKey,
+    public SsePlainSnapshotData(byte[] encodedTrapdoorPublicKey,
                                 EncryptedKeywordLocationMap encryptedKeywordLocationMap,
                                 int activeClientId,
                                 int blockedStateRequestsWhileActive,
@@ -43,7 +39,6 @@ public final class SsePlainSnapshotData implements Serializable {
                                 List<IndexAddress> updateTupleShareOrder,
                                 boolean hasMasterKeyShare,
                                 boolean hasTrapdoorPrivateKeyShare) {
-        this.keywordStates = new LinkedHashMap<>(keywordStates);
         this.encodedTrapdoorPublicKey = encodedTrapdoorPublicKey == null ? null : encodedTrapdoorPublicKey.clone();
         this.encryptedKeywordLocationMap = encryptedKeywordLocationMap;
         this.activeClientId = activeClientId;
@@ -53,10 +48,6 @@ public final class SsePlainSnapshotData implements Serializable {
         this.updateTupleShareOrder = updateTupleShareOrder;
         this.hasMasterKeyShare = hasMasterKeyShare;
         this.hasTrapdoorPrivateKeyShare = hasTrapdoorPrivateKeyShare;
-    }
-
-    public Map<KeywordToken, KeywordState> keywordStates() {
-        return keywordStates;
     }
 
     public byte[] encodedTrapdoorPublicKey() {
@@ -172,7 +163,6 @@ public final class SsePlainSnapshotData implements Serializable {
                 setupInProgress == that.setupInProgress &&
                 hasMasterKeyShare == that.hasMasterKeyShare &&
                 hasTrapdoorPrivateKeyShare == that.hasTrapdoorPrivateKeyShare &&
-                Objects.equals(keywordStates, that.keywordStates) &&
                 Arrays.equals(encodedTrapdoorPublicKey, that.encodedTrapdoorPublicKey) &&
                 Objects.equals(encryptedKeywordLocationMap, that.encryptedKeywordLocationMap) &&
                 Objects.equals(invertedIndex, that.invertedIndex) &&
@@ -181,7 +171,7 @@ public final class SsePlainSnapshotData implements Serializable {
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(keywordStates, activeClientId, blockedStateRequestsWhileActive,
+        int result = Objects.hash(activeClientId, blockedStateRequestsWhileActive,
                 setupInProgress, encryptedKeywordLocationMap, invertedIndex, updateTupleShareOrder,
                 hasMasterKeyShare, hasTrapdoorPrivateKeyShare);
         result = 31 * result + Arrays.hashCode(encodedTrapdoorPublicKey);
@@ -191,8 +181,7 @@ public final class SsePlainSnapshotData implements Serializable {
     @Override
     public String toString() {
         return "SsePlainSnapshotData[" +
-                "keywordStates=" + keywordStates +
-                ", encodedTrapdoorPublicKeyLength=" +
+                "encodedTrapdoorPublicKeyLength=" +
                 (encodedTrapPublicKeyLength()) +
                 ", encryptedKeywordLocationMap=" + encryptedKeywordLocationMap +
                 ", activeClientId=" + activeClientId +

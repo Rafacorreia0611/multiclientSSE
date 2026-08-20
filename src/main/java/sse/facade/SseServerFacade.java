@@ -49,7 +49,6 @@ public final class SseServerFacade {
             throw new IllegalStateException("Server state is not initialized");
         }
         return new State(
-                state.keywordStates(),
                 TrapdoorPermutation.encodePublicKey(state.trapdoorPublicKey()),
                 state.encryptedKeywordLocationMap()
         );

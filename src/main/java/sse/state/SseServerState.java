@@ -1,16 +1,11 @@
 package sse.state;
 
 import java.security.interfaces.RSAPublicKey;
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 import sse.domain.state.EncryptedKeywordLocationMap;
-import sse.domain.state.KeywordState;
-import sse.domain.id.KeywordToken;
 
 public final class SseServerState {
 
-    private Map<KeywordToken, KeywordState> keywordStates;
     private RSAPublicKey trapdoorPublicKey;
     private EncryptedKeywordLocationMap encryptedKeywordLocationMap;
     private int activeClientId;
@@ -20,7 +15,6 @@ public final class SseServerState {
     private final KeyShareStore keyShareStore;
 
     public SseServerState() {
-        this.keywordStates = new LinkedHashMap<>();
         this.trapdoorPublicKey = null;
         this.encryptedKeywordLocationMap = null;
         this.activeClientId = -1;
@@ -28,14 +22,6 @@ public final class SseServerState {
         this.setupInProgress = false;
         this.invertedIndexStore = new InvertedIndexStore();
         this.keyShareStore = new KeyShareStore();
-    }
-
-    public Map<KeywordToken, KeywordState> keywordStates() {
-        return keywordStates;
-    }
-
-    public void setKeywordStates(Map<KeywordToken, KeywordState> keywordStates) {
-        this.keywordStates = new LinkedHashMap<>(keywordStates);
     }
 
     public RSAPublicKey trapdoorPublicKey() {

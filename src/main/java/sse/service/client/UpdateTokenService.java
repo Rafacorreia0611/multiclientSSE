@@ -19,7 +19,6 @@ import sse.crypto.TupleEncryption;
 import sse.domain.update.EncryptedUpdateTuple;
 import sse.domain.id.IndexAddress;
 import sse.domain.state.KeywordState;
-import sse.domain.id.KeywordToken;
 import sse.domain.update.KeywordUpdate;
 import sse.domain.update.PreparedUpdateRequest;
 import sse.domain.id.SearchTokenValue;
@@ -31,7 +30,6 @@ import sse.domain.update.UpdateTuple;
 
 public final class UpdateTokenService {
 
-    private static final String TOKEN_KEY_LABEL = "TokenKey";
     private static final String ADDRESS_KEY_LABEL = "AddressKey";
 
     private SecretKey generateTupleSecretKey() {
@@ -61,7 +59,7 @@ public final class UpdateTokenService {
     }
 
     public PreparedUpdateRequest prepareUpdateRequest(SecretKey masterKey, RSAPrivateKey trapdoorPrivateKey,
-                                                      State state, KeywordUpdate update) {
+                                                      State state, KeywordState keywordState, KeywordUpdate update) {
         if (masterKey == null || trapdoorPrivateKey == null || state == null) {
             throw new IllegalArgumentException("masterKey, trapdoorPrivateKey, and state cannot be null");
         }
@@ -71,15 +69,12 @@ public final class UpdateTokenService {
 
         RSAPublicKey trapdoorPublicKey =
                 TrapdoorPermutation.decodePublicKey(state.encodedTrapdoorPublicKey());
-        byte[] tokenKey = Prf.prf(masterKey, TOKEN_KEY_LABEL);
         byte[] addressKey = Prf.prf(masterKey, ADDRESS_KEY_LABEL);
         List<UpdateTokenItem> items = new ArrayList<UpdateTokenItem>();
         List<SecretKey> tupleKeys = new ArrayList<SecretKey>();
 
         String keyword = update.keyword();
-        KeywordToken keywordToken = new KeywordToken(Prf.prf(tokenKey, keyword));
         byte[] keywordAddressKey = Prf.prf(addressKey, keyword);
-        KeywordState keywordState = state.keywordStates().get(keywordToken);
 
         for (String docId : update.docIds()) {
             SecretKey tupleKey = generateTupleSecretKey();
@@ -103,6 +98,6 @@ public final class UpdateTokenService {
             keywordState = new KeywordState(nextToken, nextCounter);
         }
 
-        return new PreparedUpdateRequest(new UpdateToken(items, keywordToken, keywordState), tupleKeys);
+        return new PreparedUpdateRequest(new UpdateToken(items), tupleKeys, keywordState);
     }
 }

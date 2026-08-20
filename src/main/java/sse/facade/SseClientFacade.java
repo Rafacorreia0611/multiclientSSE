@@ -91,11 +91,12 @@ public final class SseClientFacade {
     }
 
     public PreparedUpdateRequest prepareUpdateRequest(SecretKey masterKey, RSAPrivateKey trapdoorPrivateKey,
-                                                      State state, KeywordUpdate update) {
+                                                      State state, KeywordState keywordState, KeywordUpdate update) {
         return updateTokenService.prepareUpdateRequest(
                 masterKey,
                 trapdoorPrivateKey,
                 state,
+                keywordState,
                 update
         );
     }

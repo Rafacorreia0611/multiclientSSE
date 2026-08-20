@@ -13,17 +13,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import sse.domain.id.KeywordToken;
-import sse.domain.state.KeywordState;
-
 public final class UpdateToken implements Serializable {
     private final List<UpdateTokenItem> items;
-    private final KeywordToken updatedKeywordToken;
-    private final KeywordState updatedKeywordState;
 
-    public UpdateToken(List<UpdateTokenItem> items, KeywordToken updatedKeywordToken, KeywordState updatedKeywordState) {
-        if (items == null || items.isEmpty() || updatedKeywordToken == null || updatedKeywordState == null) {
-            throw new IllegalArgumentException("items, updatedKeywordToken and updatedKeywordState cannot be null");
+    public UpdateToken(List<UpdateTokenItem> items) {
+        if (items == null || items.isEmpty()) {
+            throw new IllegalArgumentException("items cannot be null or empty");
         }
 
         List<UpdateTokenItem> normalizedItems = new ArrayList<UpdateTokenItem>(items.size());
@@ -35,20 +30,10 @@ public final class UpdateToken implements Serializable {
         }
 
         this.items = Collections.unmodifiableList(normalizedItems);
-        this.updatedKeywordToken = updatedKeywordToken;
-        this.updatedKeywordState = updatedKeywordState;
     }
 
     public List<UpdateTokenItem> items() {
         return items;
-    }
-
-    public KeywordToken updatedKeywordToken() {
-        return updatedKeywordToken;
-    }
-
-    public KeywordState updatedKeywordState() {
-        return updatedKeywordState;
     }
 
     public byte[] serialize() {
@@ -84,22 +69,18 @@ public final class UpdateToken implements Serializable {
             return false;
         }
         UpdateToken that = (UpdateToken) o;
-        return Objects.equals(items, that.items) &&
-                Objects.equals(updatedKeywordToken, that.updatedKeywordToken) &&
-                Objects.equals(updatedKeywordState, that.updatedKeywordState);
+        return Objects.equals(items, that.items);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(items, updatedKeywordToken, updatedKeywordState);
+        return Objects.hash(items);
     }
 
     @Override
     public String toString() {
         return "UpdateToken[" +
                 "items=" + items +
-                ", updatedKeywordToken=" + updatedKeywordToken +
-                ", updatedKeywordState=" + updatedKeywordState +
                 ']';
     }
 }

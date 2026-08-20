@@ -1,6 +1,5 @@
 package sse.service.server;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -14,7 +13,6 @@ public final class SnapshotService {
 
     public SsePlainSnapshotData getPlainSnapshotData(SseServerState state) {
         return new SsePlainSnapshotData(
-                new LinkedHashMap<>(state.keywordStates()),
                 state.trapdoorPublicKey() == null
                         ? null
                         : TrapdoorPermutation.encodePublicKey(state.trapdoorPublicKey()),
@@ -45,7 +43,6 @@ public final class SnapshotService {
         if (snapshotData == null) {
             throw new IllegalArgumentException("snapshotData cannot be null");
         }
-        state.setKeywordStates(new LinkedHashMap<>(snapshotData.keywordStates()));
         state.setTrapdoorPublicKey(snapshotData.encodedTrapdoorPublicKey() == null
                 ? null
                 : TrapdoorPermutation.decodePublicKey(snapshotData.encodedTrapdoorPublicKey()));

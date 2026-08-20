@@ -6,14 +6,17 @@ import java.util.List;
 
 import javax.crypto.SecretKey;
 
+import sse.domain.state.KeywordState;
+
 public final class PreparedUpdateRequest {
 
     private final UpdateToken updateToken;
     private final List<SecretKey> tupleKeys;
+    private final KeywordState keywordState;
 
-    public PreparedUpdateRequest(UpdateToken updateToken, List<SecretKey> tupleKeys) {
-        if (updateToken == null || tupleKeys == null || tupleKeys.isEmpty()) {
-            throw new IllegalArgumentException("updateToken and tupleKeys cannot be null or empty");
+    public PreparedUpdateRequest(UpdateToken updateToken, List<SecretKey> tupleKeys, KeywordState keywordState) {
+        if (updateToken == null || tupleKeys == null || tupleKeys.isEmpty() || keywordState == null) {
+            throw new IllegalArgumentException("updateToken, tupleKeys and keywordState cannot be null or empty");
         }
         if (updateToken.items().size() != tupleKeys.size()) {
             throw new IllegalArgumentException("update token item count must match tuple key count");
@@ -29,6 +32,7 @@ public final class PreparedUpdateRequest {
 
         this.updateToken = updateToken;
         this.tupleKeys = Collections.unmodifiableList(normalizedTupleKeys);
+        this.keywordState = keywordState;
     }
 
     public UpdateToken updateToken() {
@@ -37,5 +41,9 @@ public final class PreparedUpdateRequest {
 
     public List<SecretKey> tupleKeys() {
         return tupleKeys;
+    }
+
+    public KeywordState keywordState() {
+        return keywordState;
     }
 }
