@@ -85,16 +85,6 @@ public final class SSEServerHandler {
         }
     }
 
-    public ConfidentialMessage handleSetupComplete(int clientId) {
-        System.out.println("PopulateDB completed by client " + clientId + ". SSE database population is ready.");
-        return statusMessage(ResponseStatus.OK);
-    }
-
-    public ConfidentialMessage handleSetupAbort(int clientId) {
-        System.out.println("PopulateDB aborted by client " + clientId + ".");
-        return statusMessage(ResponseStatus.OK);
-    }
-
     public ConfidentialSnapshot getConfidentialSnapshot() {
         SSEPlainSnapshotData sseSnapshotData = sseServerFacade.getPlainSnapshotData();
         byte[] plainData = sseSnapshotData.serialize();

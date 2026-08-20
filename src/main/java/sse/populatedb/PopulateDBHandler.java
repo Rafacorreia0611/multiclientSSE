@@ -73,13 +73,10 @@ public final class PopulateDBHandler implements AutoCloseable {
     }
 
     public PopulationSummary populate(Path inputPath) {
-        boolean setupStarted = false;
-        boolean completed = false;
         try (BufferedReader reader = datasetReader.openReader(inputPath)) {
             initCoordinator.initializeOrConnect();
 
-            ConfidentialClientAdapter.StateRequestResult stateRequest = adapter.requestSetupState();
-            setupStarted = true;
+            ConfidentialClientAdapter.StateRequestResult stateRequest = adapter.requestState();
             State currentState = stateRequest.state();
             SecretKey masterKey = stateRequest.masterKey();
             RSAPrivateKey trapdoorPrivateKey = stateRequest.trapdoorPrivateKey();
@@ -129,19 +126,11 @@ public final class PopulateDBHandler implements AutoCloseable {
                 processedKeywords++;
             }
 
-            if (!adapter.sendSetupCompleteRequest()) {
-                throw new IllegalStateException("Server rejected the setup completion request");
-            }
-            completed = true;
             printProgress(processedKeywords, processedDocIds, sentBatches, startTimeNanos);
             System.out.println();
             return new PopulationSummary(processedKeywords, processedDocIds, sentBatches);
         } catch (IOException e) {
             throw new IllegalStateException("Failed while reading NDJSON input " + inputPath.toAbsolutePath(), e);
-        } finally {
-            if (setupStarted && !completed) {
-                attemptSetupAbort();
-            }
         }
     }
 
@@ -234,16 +223,6 @@ public final class PopulateDBHandler implements AutoCloseable {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Interrupted while waiting to retry keyword lock", e);
-        }
-    }
-
-    private void attemptSetupAbort() {
-        try {
-            if (!adapter.sendSetupAbortRequest()) {
-                System.err.println("PopulateDB could not signal setup abort to the replicas.");
-            }
-        } catch (RuntimeException e) {
-            System.err.println("PopulateDB failed to signal setup abort: " + e.getMessage());
         }
     }
 

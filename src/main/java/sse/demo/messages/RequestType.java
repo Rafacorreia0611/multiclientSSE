@@ -1,17 +1,11 @@
 package sse.demo.messages;
 
 public enum RequestType {
-    // Interactive client requests
     SEARCH,
     UPDATE,
     STATE,
-    SETUP_STATE,
     INIT_STATE,
-    IS_INITIALIZED,
-
-    // PopulateDB requests
-    SETUP_COMPLETE,
-    SETUP_ABORT;
+    IS_INITIALIZED;
 
     public static RequestType[] values = values();
 

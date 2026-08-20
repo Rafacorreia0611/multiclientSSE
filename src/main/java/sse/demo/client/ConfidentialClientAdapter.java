@@ -34,7 +34,6 @@ import vss.facade.SecretSharingException;
 public final class ConfidentialClientAdapter {
 
     private static final String SSE_CONFIG_HOME = "sse_config";
-    private static final long STATE_RETRY_DELAY_MS = 250L;
 
     private final ConfidentialServiceProxy service;
     private final int clientId;
@@ -89,55 +88,33 @@ public final class ConfidentialClientAdapter {
     }
 
     public StateRequestResult requestState() {
-        return requestState(RequestType.STATE);
-    }
-
-    public StateRequestResult requestSetupState() {
-        return requestState(RequestType.SETUP_STATE);
-    }
-
-    private StateRequestResult requestState(RequestType requestType) {
-        boolean waitingLogged = false;
-        while (true) {
-            try {
-                Response response = service.invokeOrdered(serialize(requestType, null));
-                ensureResponsePresent(response, requestType + " operation");
-                byte[] plainResponse = response.getPlainData();
-                if (plainResponse == null || plainResponse.length == 0) {
-                    throw new RuntimeException("State response missing from server");
-                }
-                ResponseStatus responseStatus = ResponseStatus.getResponseStatus(Byte.toUnsignedInt(plainResponse[0]));
-                if (responseStatus == ResponseStatus.BUSY) {
-                    if (!waitingLogged) {
-                        System.out.println("Another client is active. Retrying...");
-                        waitingLogged = true;
-                    }
-                    Thread.sleep(STATE_RETRY_DELAY_MS);
-                    continue;
-                }
-                if (responseStatus != ResponseStatus.OK) {
-                    throw new RuntimeException("Unexpected state response status: " + responseStatus);
-                }
-                State state = State.deserialize(Arrays.copyOfRange(plainResponse, 1, plainResponse.length));
-                if (state == null) {
-                    throw new RuntimeException("State missing from response");
-                }
-                if (response.getConfidentialData() == null || response.getConfidentialData().length < 2) {
-                    throw new RuntimeException("State keys missing from response");
-                }
-                SecretKey masterKey = new SecretKeySpec(response.getConfidentialData()[0], Prf.ALGORITHM);
-                RSAPrivateKey trapdoorPrivateKey = TrapdoorPermutation.decodePrivateKey(response.getConfidentialData()[1]);
-                return new StateRequestResult(
-                        state,
-                        masterKey,
-                        trapdoorPrivateKey
-                );
-            } catch (SecretSharingException e) {
-                throw new RuntimeException("Error invoking " + requestType + " operation", e);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new RuntimeException("Interrupted while waiting to retry state request", e);
+        try {
+            Response response = service.invokeOrdered(serialize(RequestType.STATE, null));
+            ensureResponsePresent(response, "STATE operation");
+            byte[] plainResponse = response.getPlainData();
+            if (plainResponse == null || plainResponse.length == 0) {
+                throw new RuntimeException("State response missing from server");
             }
+            ResponseStatus responseStatus = ResponseStatus.getResponseStatus(Byte.toUnsignedInt(plainResponse[0]));
+            if (responseStatus != ResponseStatus.OK) {
+                throw new RuntimeException("Unexpected state response status: " + responseStatus);
+            }
+            State state = State.deserialize(Arrays.copyOfRange(plainResponse, 1, plainResponse.length));
+            if (state == null) {
+                throw new RuntimeException("State missing from response");
+            }
+            if (response.getConfidentialData() == null || response.getConfidentialData().length < 2) {
+                throw new RuntimeException("State keys missing from response");
+            }
+            SecretKey masterKey = new SecretKeySpec(response.getConfidentialData()[0], Prf.ALGORITHM);
+            RSAPrivateKey trapdoorPrivateKey = TrapdoorPermutation.decodePrivateKey(response.getConfidentialData()[1]);
+            return new StateRequestResult(
+                    state,
+                    masterKey,
+                    trapdoorPrivateKey
+            );
+        } catch (SecretSharingException e) {
+            throw new RuntimeException("Error invoking STATE operation", e);
         }
     }
 
@@ -182,14 +159,6 @@ public final class ConfidentialClientAdapter {
                 updateToken == null ? null : updateToken.serialize(),
                 confidentialData
         );
-    }
-
-    public boolean sendSetupCompleteRequest() {
-        return sendStatusOnlyRequest(RequestType.SETUP_COMPLETE, null, null);
-    }
-
-    public boolean sendSetupAbortRequest() {
-        return sendStatusOnlyRequest(RequestType.SETUP_ABORT, null, null);
     }
 
     private byte[] serialize(RequestType type, byte[] payload) {
