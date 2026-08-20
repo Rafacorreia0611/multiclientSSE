@@ -9,12 +9,12 @@ import sse.domain.id.IndexAddress;
 import sse.domain.search.SearchResponseData;
 import sse.domain.search.SearchToken;
 import sse.domain.id.SearchTokenValue;
-import sse.state.SseServerState;
+import sse.state.SSEServerState;
 import vss.secretsharing.VerifiableShare;
 
 public final class SearchService {
 
-    public SearchResponseData search(SseServerState state, SearchToken searchToken) {
+    public SearchResponseData search(SSEServerState state, SearchToken searchToken) {
         if (state == null || searchToken == null) {
             throw new IllegalArgumentException("state and searchToken cannot be null");
         }

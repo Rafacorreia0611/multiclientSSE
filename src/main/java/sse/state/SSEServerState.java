@@ -4,7 +4,7 @@ import java.security.interfaces.RSAPublicKey;
 
 import sse.domain.state.EncryptedKeywordLocationMap;
 
-public final class SseServerState {
+public final class SSEServerState {
 
     private RSAPublicKey trapdoorPublicKey;
     private EncryptedKeywordLocationMap encryptedKeywordLocationMap;
@@ -14,7 +14,7 @@ public final class SseServerState {
     private final InvertedIndexStore invertedIndexStore;
     private final KeyShareStore keyShareStore;
 
-    public SseServerState() {
+    public SSEServerState() {
         this.trapdoorPublicKey = null;
         this.encryptedKeywordLocationMap = null;
         this.activeClientId = -1;

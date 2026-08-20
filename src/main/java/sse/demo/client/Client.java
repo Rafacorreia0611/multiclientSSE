@@ -32,11 +32,11 @@ public class Client {
         }
 
         ConfidentialClientAdapter clientAdapter = null;
-        SseClientHandler clientHandler = null;
+        SSEClientHandler clientHandler = null;
         InteractiveClient interactiveClient = null;
         try {
             clientAdapter = new ConfidentialClientAdapter(clientId);
-            clientHandler = new SseClientHandler(clientAdapter, vocabularyPath);
+            clientHandler = new SSEClientHandler(clientAdapter, vocabularyPath);
             interactiveClient = new InteractiveClient(clientHandler);
             interactiveClient.run();
         } catch (Exception e) {

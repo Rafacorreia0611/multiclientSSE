@@ -12,10 +12,10 @@ import sse.domain.update.UpdateOp;
 
 public final class InteractiveClient {
 
-    private final SseClientHandler client;
+    private final SSEClientHandler client;
     private final BufferedReader userIn;
 
-    public InteractiveClient(SseClientHandler client) {
+    public InteractiveClient(SSEClientHandler client) {
         this.client = client;
         this.userIn = new BufferedReader(new InputStreamReader(System.in));
     }

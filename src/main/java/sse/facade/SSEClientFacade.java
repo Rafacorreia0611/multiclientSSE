@@ -36,13 +36,13 @@ import sse.service.client.UpdateTokenService;
 import sse.vocabulary.LuceneKeywordNormalizer;
 import sse.vocabulary.VocabularyLoader;
 
-public final class SseClientFacade {
+public final class SSEClientFacade {
 
     private final SearchTokenService searchTokenService;
     private final UpdateTokenService updateTokenService;
     private final KeywordLocationService keywordLocationService;
 
-    public SseClientFacade() {
+    public SSEClientFacade() {
         this.searchTokenService = new SearchTokenService();
         this.updateTokenService = new UpdateTokenService();
         this.keywordLocationService = new KeywordLocationService();

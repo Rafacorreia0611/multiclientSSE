@@ -17,7 +17,7 @@ import sse.benchmark.BenchmarkOperation;
 import sse.benchmark.BenchmarkResultWriter;
 import sse.benchmark.BenchmarkScenario;
 import sse.demo.client.ConfidentialClientAdapter;
-import sse.demo.client.SseClientHandler;
+import sse.demo.client.SSEClientHandler;
 import sse.domain.update.KeywordUpdate;
 import sse.domain.update.UpdateOp;
 import vss.facade.SecretSharingException;
@@ -58,7 +58,7 @@ public final class UpdateLatencyByAssociationsScenario implements BenchmarkScena
         validatePayloadCounts(config, warmupPayloads, measurePayloads);
 
         ConfidentialClientAdapter adapter = createAdapter(config.clientId());
-        SseClientHandler clientHandler = new SseClientHandler(adapter);
+        SSEClientHandler clientHandler = new SSEClientHandler(adapter);
         try {
             runWarmups(clientHandler, warmupPayloads);
             runMeasurement(clientHandler, measurePayloads.get(0), resultWriter);
@@ -208,7 +208,7 @@ public final class UpdateLatencyByAssociationsScenario implements BenchmarkScena
         }
     }
 
-    private void runWarmups(SseClientHandler clientHandler, List<UpdatePayload> warmupPayloads) {
+    private void runWarmups(SSEClientHandler clientHandler, List<UpdatePayload> warmupPayloads) {
         for (UpdatePayload payload : warmupPayloads) {
             for (KeywordUpdate update : toKeywordUpdates(payload)) {
                 clientHandler.update(update);
@@ -216,7 +216,7 @@ public final class UpdateLatencyByAssociationsScenario implements BenchmarkScena
         }
     }
 
-    private void runMeasurement(SseClientHandler clientHandler,
+    private void runMeasurement(SSEClientHandler clientHandler,
                                 UpdatePayload payload,
                                 BenchmarkResultWriter resultWriter) throws IOException {
         List<KeywordUpdate> keywordUpdates = toKeywordUpdates(payload);

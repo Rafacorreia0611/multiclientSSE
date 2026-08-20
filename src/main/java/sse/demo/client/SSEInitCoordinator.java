@@ -3,20 +3,20 @@ package sse.demo.client;
 import java.nio.file.Path;
 
 import sse.domain.setup.PreparedInitialization;
-import sse.facade.SseClientFacade;
+import sse.facade.SSEClientFacade;
 import sse.oram.ORAMAdapter;
 import sse.oram.ORAMSettings;
 
-public final class SseInitCoordinator {
+public final class SSEInitCoordinator {
 
     private final ConfidentialClientAdapter adapter;
-    private final SseClientFacade sseClientFacade;
+    private final SSEClientFacade sseClientFacade;
     private final Path vocabularyPath;
     private final ORAMSettings oramSettings;
     private final ORAMAdapter oramAdapter;
 
-    public SseInitCoordinator(ConfidentialClientAdapter adapter,
-                              SseClientFacade sseClientFacade,
+    public SSEInitCoordinator(ConfidentialClientAdapter adapter,
+                              SSEClientFacade sseClientFacade,
                               Path vocabularyPath,
                               ORAMSettings oramSettings,
                               ORAMAdapter oramAdapter) {

@@ -19,10 +19,10 @@ import vss.secretsharing.VerifiableShare;
 
 public final class ConfidentialServerAdapter implements ConfidentialSingleExecutable {
 
-    private final SseServerHandler handler;
+    private final SSEServerHandler handler;
 
     ConfidentialServerAdapter(int processId) {
-        this.handler = new SseServerHandler();
+        this.handler = new SSEServerHandler();
         new ConfidentialServerFacade(processId, this);
     }
 

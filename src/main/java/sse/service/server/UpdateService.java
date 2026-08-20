@@ -6,12 +6,12 @@ import java.util.Set;
 import sse.domain.id.IndexAddress;
 import sse.domain.update.UpdateToken;
 import sse.domain.update.UpdateTokenItem;
-import sse.state.SseServerState;
+import sse.state.SSEServerState;
 import vss.secretsharing.VerifiableShare;
 
 public final class UpdateService {
 
-    public void update(SseServerState state, UpdateToken updateToken, VerifiableShare[] updateTupleKeyShares) {
+    public void update(SSEServerState state, UpdateToken updateToken, VerifiableShare[] updateTupleKeyShares) {
         if (updateToken == null || updateTupleKeyShares == null) {
             throw new IllegalArgumentException("updateToken and updateTupleKeyShares cannot be null");
         }

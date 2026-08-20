@@ -11,22 +11,22 @@ import sse.domain.search.SearchToken;
 import sse.domain.state.EncryptedKeywordLocationMap;
 import sse.domain.state.State;
 import sse.domain.update.UpdateToken;
-import sse.snapshot.SsePlainSnapshotData;
+import sse.snapshot.SSEPlainSnapshotData;
 import sse.service.server.SearchService;
 import sse.service.server.SnapshotService;
 import sse.service.server.UpdateService;
-import sse.state.SseServerState;
+import sse.state.SSEServerState;
 import vss.secretsharing.VerifiableShare;
 
-public final class SseServerFacade {
+public final class SSEServerFacade {
 
-    private final SseServerState state;
+    private final SSEServerState state;
     private final SearchService searchService;
     private final UpdateService updateService;
     private final SnapshotService snapshotService;
 
-    public SseServerFacade() {
-        this.state = new SseServerState();
+    public SSEServerFacade() {
+        this.state = new SSEServerState();
         this.searchService = new SearchService();
         this.updateService = new UpdateService();
         this.snapshotService = new SnapshotService();
@@ -122,7 +122,7 @@ public final class SseServerFacade {
         return true;
     }
 
-    public SsePlainSnapshotData getPlainSnapshotData() {
+    public SSEPlainSnapshotData getPlainSnapshotData() {
         return snapshotService.getPlainSnapshotData(state);
     }
 
@@ -137,7 +137,7 @@ public final class SseServerFacade {
         );
     }
 
-    public void installSnapshot(SsePlainSnapshotData snapshotData, VerifiableShare masterKeyShare,
+    public void installSnapshot(SSEPlainSnapshotData snapshotData, VerifiableShare masterKeyShare,
                                 VerifiableShare trapdoorPrivateKeyShare,
                                 Map<IndexAddress, VerifiableShare> updateTupleShares) {
         snapshotService.installSnapshot(

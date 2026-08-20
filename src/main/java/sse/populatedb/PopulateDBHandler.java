@@ -11,13 +11,13 @@ import javax.crypto.SecretKey;
 import sse.dataset.KeywordDocIdsEntry;
 import sse.dataset.KeywordDocIdsReader;
 import sse.demo.client.ConfidentialClientAdapter;
-import sse.demo.client.SseInitCoordinator;
+import sse.demo.client.SSEInitCoordinator;
 import sse.domain.state.KeywordBlock;
 import sse.domain.update.KeywordUpdate;
 import sse.domain.update.PreparedUpdateRequest;
 import sse.domain.state.State;
 import sse.domain.update.UpdateOp;
-import sse.facade.SseClientFacade;
+import sse.facade.SSEClientFacade;
 import sse.oram.ORAMAdapter;
 import sse.oram.ORAMSettings;
 import sse.vocabulary.VocabularyLoader;
@@ -29,10 +29,10 @@ public final class PopulateDBHandler implements AutoCloseable {
     private static final long LOCK_RETRY_DELAY_MS = 250L;
 
     private final ConfidentialClientAdapter adapter;
-    private final SseClientFacade sseClientFacade;
+    private final SSEClientFacade sseClientFacade;
     private final ORAMSettings oramSettings;
     private final ORAMAdapter oramAdapter;
-    private final SseInitCoordinator initCoordinator;
+    private final SSEInitCoordinator initCoordinator;
     private final KeywordDocIdsReader datasetReader;
     private final int batchSize;
 
@@ -55,13 +55,13 @@ public final class PopulateDBHandler implements AutoCloseable {
             throw new IllegalArgumentException("vocabularyPath cannot be null");
         }
         this.adapter = adapter;
-        this.sseClientFacade = new SseClientFacade();
+        this.sseClientFacade = new SSEClientFacade();
         this.oramSettings = ORAMSettings.defaults();
         this.oramAdapter = new ORAMAdapter(
                 oramSettings,
                 ORAMSettings.oramClientIdFor(adapter.clientId())
         );
-        this.initCoordinator = new SseInitCoordinator(
+        this.initCoordinator = new SSEInitCoordinator(
                 adapter,
                 sseClientFacade,
                 vocabularyPath,

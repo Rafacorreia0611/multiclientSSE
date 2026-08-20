@@ -5,14 +5,14 @@ import java.util.Map;
 
 import sse.crypto.TrapdoorPermutation;
 import sse.domain.id.IndexAddress;
-import sse.snapshot.SsePlainSnapshotData;
-import sse.state.SseServerState;
+import sse.snapshot.SSEPlainSnapshotData;
+import sse.state.SSEServerState;
 import vss.secretsharing.VerifiableShare;
 
 public final class SnapshotService {
 
-    public SsePlainSnapshotData getPlainSnapshotData(SseServerState state) {
-        return new SsePlainSnapshotData(
+    public SSEPlainSnapshotData getPlainSnapshotData(SSEServerState state) {
+        return new SSEPlainSnapshotData(
                 state.trapdoorPublicKey() == null
                         ? null
                         : TrapdoorPermutation.encodePublicKey(state.trapdoorPublicKey()),
@@ -27,7 +27,7 @@ public final class SnapshotService {
         );
     }
 
-    public VerifiableShare[] getSnapshotShares(SseServerState state, List<IndexAddress> updateTupleShareOrder,
+    public VerifiableShare[] getSnapshotShares(SSEServerState state, List<IndexAddress> updateTupleShareOrder,
                                                boolean includeMasterKeyShare,
                                                boolean includeTrapdoorPrivateKeyShare) {
         return state.keyShareStore().sharesInOrder(
@@ -37,7 +37,7 @@ public final class SnapshotService {
         );
     }
 
-    public void installSnapshot(SseServerState state, SsePlainSnapshotData snapshotData, VerifiableShare masterKeyShare,
+    public void installSnapshot(SSEServerState state, SSEPlainSnapshotData snapshotData, VerifiableShare masterKeyShare,
                                 VerifiableShare trapdoorPrivateKeyShare,
                                 Map<IndexAddress, VerifiableShare> updateTupleShares) {
         if (snapshotData == null) {

@@ -14,19 +14,19 @@ import sse.domain.search.SearchResponseData;
 import sse.domain.search.SearchToken;
 import sse.domain.state.State;
 import sse.domain.update.UpdateToken;
-import sse.facade.SseServerFacade;
-import sse.snapshot.SsePlainSnapshotData;
+import sse.facade.SSEServerFacade;
+import sse.snapshot.SSEPlainSnapshotData;
 import vss.secretsharing.VerifiableShare;
 
-public final class SseServerHandler {
+public final class SSEServerHandler {
 
     private static final int MAX_BLOCKED_STATE_REQUESTS = 3;
     private static final int MAX_BLOCKED_STATE_REQUESTS_DURING_SETUP = 20;
 
-    private final SseServerFacade sseServerFacade;
+    private final SSEServerFacade sseServerFacade;
 
-    public SseServerHandler() {
-        this.sseServerFacade = new SseServerFacade();
+    public SSEServerHandler() {
+        this.sseServerFacade = new SSEServerFacade();
     }
 
     public boolean initializeState(InitialStatePayload initialStatePayload,
@@ -162,7 +162,7 @@ public final class SseServerHandler {
     }
 
     public ConfidentialSnapshot getConfidentialSnapshot() {
-        SsePlainSnapshotData sseSnapshotData = sseServerFacade.getPlainSnapshotData();
+        SSEPlainSnapshotData sseSnapshotData = sseServerFacade.getPlainSnapshotData();
         byte[] plainData = sseSnapshotData.serialize();
         VerifiableShare[] shares = sseServerFacade.getSnapshotShares(
                 sseSnapshotData.updateTupleShareOrder(),
@@ -173,7 +173,7 @@ public final class SseServerHandler {
     }
 
     public void installConfidentialSnapshot(ConfidentialSnapshot cs) {
-        SsePlainSnapshotData snapshot = SsePlainSnapshotData.deserialize(cs.getPlainData());
+        SSEPlainSnapshotData snapshot = SSEPlainSnapshotData.deserialize(cs.getPlainData());
         sseServerFacade.installSnapshot(
                 snapshot,
                 snapshot.masterKeyShare(cs.getShares()),

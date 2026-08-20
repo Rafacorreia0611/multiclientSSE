@@ -14,26 +14,26 @@ import sse.domain.update.PreparedUpdateRequest;
 import sse.domain.search.SearchToken;
 import sse.domain.state.KeywordBlock;
 import sse.domain.state.State;
-import sse.facade.SseClientFacade;
+import sse.facade.SSEClientFacade;
 import sse.oram.ORAMAdapter;
 import sse.oram.ORAMSettings;
 import sse.vocabulary.VocabularyLoader;
 
-public final class SseClientHandler {
+public final class SSEClientHandler {
 
     private static final long LOCK_RETRY_DELAY_MS = 250L;
 
     private final ConfidentialClientAdapter adapter;
-    private final SseClientFacade sseClientFacade;
+    private final SSEClientFacade sseClientFacade;
     private final ORAMSettings oramSettings;
     private final ORAMAdapter oramAdapter;
-    private final SseInitCoordinator initCoordinator;
+    private final SSEInitCoordinator initCoordinator;
 
-    public SseClientHandler(ConfidentialClientAdapter adapter) {
+    public SSEClientHandler(ConfidentialClientAdapter adapter) {
         this(adapter, VocabularyLoader.DEFAULT_VOCABULARY_PATH);
     }
 
-    public SseClientHandler(ConfidentialClientAdapter adapter, Path vocabularyPath) {
+    public SSEClientHandler(ConfidentialClientAdapter adapter, Path vocabularyPath) {
         if (adapter == null) {
             throw new IllegalArgumentException("adapter cannot be null");
         }
@@ -41,13 +41,13 @@ public final class SseClientHandler {
             throw new IllegalArgumentException("vocabularyPath cannot be null");
         }
         this.adapter = adapter;
-        this.sseClientFacade = new SseClientFacade();
+        this.sseClientFacade = new SSEClientFacade();
         this.oramSettings = ORAMSettings.defaults();
         this.oramAdapter = new ORAMAdapter(
                 oramSettings,
                 ORAMSettings.oramClientIdFor(adapter.clientId())
         );
-        this.initCoordinator = new SseInitCoordinator(
+        this.initCoordinator = new SSEInitCoordinator(
                 adapter,
                 sseClientFacade,
                 vocabularyPath,

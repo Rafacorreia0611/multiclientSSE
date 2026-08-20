@@ -19,7 +19,7 @@ import sse.domain.id.IndexAddress;
 import sse.domain.state.EncryptedKeywordLocationMap;
 import vss.secretsharing.VerifiableShare;
 
-public final class SsePlainSnapshotData implements Serializable {
+public final class SSEPlainSnapshotData implements Serializable {
     private final byte[] encodedTrapdoorPublicKey;
     private final EncryptedKeywordLocationMap encryptedKeywordLocationMap;
     private final int activeClientId;
@@ -30,7 +30,7 @@ public final class SsePlainSnapshotData implements Serializable {
     private final boolean hasMasterKeyShare;
     private final boolean hasTrapdoorPrivateKeyShare;
 
-    public SsePlainSnapshotData(byte[] encodedTrapdoorPublicKey,
+    public SSEPlainSnapshotData(byte[] encodedTrapdoorPublicKey,
                                 EncryptedKeywordLocationMap encryptedKeywordLocationMap,
                                 int activeClientId,
                                 int blockedStateRequestsWhileActive,
@@ -98,10 +98,10 @@ public final class SsePlainSnapshotData implements Serializable {
         }
     }
 
-    public static SsePlainSnapshotData deserialize(byte[] plainData) {
+    public static SSEPlainSnapshotData deserialize(byte[] plainData) {
         try (ByteArrayInputStream bis = new ByteArrayInputStream(plainData);
              ObjectInput in = new ObjectInputStream(bis)) {
-            return (SsePlainSnapshotData) in.readObject();
+            return (SSEPlainSnapshotData) in.readObject();
         } catch (IOException | ClassNotFoundException e) {
             throw new RuntimeException("Error deserializing snapshot", e);
         }
@@ -157,7 +157,7 @@ public final class SsePlainSnapshotData implements Serializable {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        SsePlainSnapshotData that = (SsePlainSnapshotData) o;
+        SSEPlainSnapshotData that = (SSEPlainSnapshotData) o;
         return activeClientId == that.activeClientId &&
                 blockedStateRequestsWhileActive == that.blockedStateRequestsWhileActive &&
                 setupInProgress == that.setupInProgress &&
@@ -180,7 +180,7 @@ public final class SsePlainSnapshotData implements Serializable {
 
     @Override
     public String toString() {
-        return "SsePlainSnapshotData[" +
+        return "SSEPlainSnapshotData[" +
                 "encodedTrapdoorPublicKeyLength=" +
                 (encodedTrapPublicKeyLength()) +
                 ", encryptedKeywordLocationMap=" + encryptedKeywordLocationMap +

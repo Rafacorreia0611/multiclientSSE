@@ -16,7 +16,7 @@ import sse.benchmark.BenchmarkScenario;
 import sse.dataset.KeywordDocIdsEntry;
 import sse.dataset.KeywordDocIdsReader;
 import sse.demo.client.ConfidentialClientAdapter;
-import sse.demo.client.SseClientHandler;
+import sse.demo.client.SSEClientHandler;
 import vss.facade.SecretSharingException;
 
 public final class SearchLatencyByDocsScenario implements BenchmarkScenario {
@@ -45,7 +45,7 @@ public final class SearchLatencyByDocsScenario implements BenchmarkScenario {
         validateEntries(entriesByBucket, config);
 
         ConfidentialClientAdapter adapter = createAdapter(config.clientId());
-        SseClientHandler clientHandler = new SseClientHandler(adapter);
+        SSEClientHandler clientHandler = new SSEClientHandler(adapter);
         try {
             runWarmup(clientHandler, entriesByBucket, config);
             runMeasurements(clientHandler, entriesByBucket, config, resultWriter);
@@ -135,7 +135,7 @@ public final class SearchLatencyByDocsScenario implements BenchmarkScenario {
         }
     }
 
-    private void runWarmup(SseClientHandler clientHandler,
+    private void runWarmup(SSEClientHandler clientHandler,
                            Map<BenchmarkBucket, List<KeywordDocIdsEntry>> entriesByBucket,
                            BenchmarkConfig config) {
         for (Map.Entry<BenchmarkBucket, List<KeywordDocIdsEntry>> bucketEntries : entriesByBucket.entrySet()) {
@@ -148,7 +148,7 @@ public final class SearchLatencyByDocsScenario implements BenchmarkScenario {
         }
     }
 
-    private void runMeasurements(SseClientHandler clientHandler,
+    private void runMeasurements(SSEClientHandler clientHandler,
                                  Map<BenchmarkBucket, List<KeywordDocIdsEntry>> entriesByBucket,
                                  BenchmarkConfig config,
                                  BenchmarkResultWriter resultWriter) throws Exception {
