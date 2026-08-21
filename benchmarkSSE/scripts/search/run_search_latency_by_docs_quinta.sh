@@ -224,6 +224,7 @@ generate_dataset() {
       echo "Generating synthetic dataset..."
       python3 "$ROOT_DIR/benchmarkSSE/scripts/datasets/syntheticDataset.py" \
         --output "$ABS_SYNTHETIC_OUTPUT_PATH" \
+        --vocabulary "$ROOT_DIR/datasets/vocabulary/vocabulary.txt" \
         --keywords-per-doc-count "$SYNTHETIC_KEYWORDS_PER_DOC_COUNT" \
         --doc-counts "$SYNTHETIC_DOC_COUNTS" \
         --seed "$SYNTHETIC_SEED"

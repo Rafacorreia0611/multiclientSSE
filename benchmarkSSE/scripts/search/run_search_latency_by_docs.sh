@@ -644,6 +644,7 @@ generate_synthetic_dataset() {
     cd "$ROOT_DIR"
     python3 "$ABS_SYNTHETIC_DATASET_SCRIPT" \
       --output "$ABS_SYNTHETIC_OUTPUT_PATH" \
+      --vocabulary "$ROOT_DIR/datasets/vocabulary/vocabulary.txt" \
       --keywords-per-doc-count "$SYNTHETIC_KEYWORDS_PER_DOC_COUNT" \
       --doc-counts "$SYNTHETIC_DOC_COUNTS" \
       --seed "$SYNTHETIC_SEED"

@@ -165,6 +165,18 @@ task processEnronDataset(type: JavaExec, dependsOn: classes) {
     args inputPath, outputPath, mode, topK, maxDocFreqRatio, bucketSpec, samplesPerBucket
 }
 
+task exportUsableVocabulary(type: JavaExec, dependsOn: classes) {
+    group = 'dataset'
+    description = 'Exports one usable raw vocabulary keyword per protocol-normalized keyword.'
+    classpath = sourceSets.main.runtimeClasspath
+    main = 'sse.vocabulary.VocabularyExporter'
+
+    def inputPath = (project.findProperty('vocabularyInput') ?: 'datasets/vocabulary/vocabulary.txt').toString()
+    def outputPath = (project.findProperty('vocabularyOutput') ?: "${buildDir}/tmp/usable-vocabulary.txt").toString()
+
+    args inputPath, outputPath
+}
+
 dependencies {
     implementation fileTree('lib'){include '*.jar'}
 

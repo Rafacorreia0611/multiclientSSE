@@ -7,18 +7,23 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
 
 DEFAULT_SEED = 42
+ROOT_DIR = Path(__file__).resolve().parents[3]
+DEFAULT_VOCABULARY_PATH = ROOT_DIR / "datasets" / "vocabulary" / "vocabulary.txt"
 
 
 @dataclass(frozen=True)
 class SyntheticConfig:
     output_path: Path
+    vocabulary_path: Path
     keywords_per_doc_count: int
     doc_counts: list[int]
     seed: int
@@ -47,6 +52,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--output",
         required=True,
         help="Path to the generated NDJSON file.",
+    )
+    parser.add_argument(
+        "--vocabulary",
+        default=str(DEFAULT_VOCABULARY_PATH),
+        help=f"Path to the protocol vocabulary file. Default: {DEFAULT_VOCABULARY_PATH}.",
     )
     parser.add_argument(
         "--keywords-per-doc-count",
@@ -99,6 +109,7 @@ def parse_doc_counts(raw_value: str) -> list[int]:
 def build_config(args: argparse.Namespace) -> SyntheticConfig:
     config = SyntheticConfig(
         output_path=Path(args.output),
+        vocabulary_path=Path(args.vocabulary).resolve(),
         keywords_per_doc_count=args.keywords_per_doc_count,
         doc_counts=args.doc_counts,
         seed=args.seed,
@@ -110,33 +121,81 @@ def build_config(args: argparse.Namespace) -> SyntheticConfig:
 def validate_config(config: SyntheticConfig) -> None:
     if config.output_path.exists() and config.output_path.is_dir():
         raise ValueError(f"Output path is a directory: {config.output_path}")
+    if not config.vocabulary_path.exists() or not config.vocabulary_path.is_file():
+        raise ValueError(f"Vocabulary file does not exist: {config.vocabulary_path}")
     if config.association_count <= 0:
         raise ValueError("Synthetic dataset must contain at least one keyword-docId association")
 
 
 def generate_dataset(config: SyntheticConfig) -> None:
     random_generator = random.Random(config.seed)
+    keywords = sample_vocabulary_keywords(config, random_generator)
     doc_id_width = max(8, len(str(config.doc_universe_size)))
-    keyword_index_width = max(3, len(str(config.keywords_per_doc_count)))
     doc_universe = [
         format_doc_id(doc_index, doc_id_width)
         for doc_index in range(1, config.doc_universe_size + 1)
     ]
 
     config.output_path.parent.mkdir(parents=True, exist_ok=True)
+    keyword_offset = 0
     with config.output_path.open("w", encoding="utf-8", newline="\n") as handle:
         for doc_count in config.doc_counts:
-            for keyword_index in range(1, config.keywords_per_doc_count + 1):
+            for _ in range(1, config.keywords_per_doc_count + 1):
                 entry = {
-                    "keyword": format_keyword(doc_count, keyword_index, keyword_index_width),
+                    "keyword": keywords[keyword_offset],
                     "docIds": random_generator.sample(doc_universe, doc_count),
                 }
                 handle.write(json.dumps(entry, separators=(",", ":")))
                 handle.write("\n")
+                keyword_offset += 1
 
 
-def format_keyword(doc_count: int, keyword_index: int, keyword_index_width: int) -> str:
-    return f"kw_{doc_count}_{keyword_index:0{keyword_index_width}d}"
+def sample_vocabulary_keywords(config: SyntheticConfig, random_generator: random.Random) -> list[str]:
+    vocabulary_keywords = load_usable_vocabulary(config.vocabulary_path)
+    if config.keyword_count > len(vocabulary_keywords):
+        raise ValueError(
+            "Not enough usable vocabulary keywords: "
+            f"need {config.keyword_count}, found {len(vocabulary_keywords)}"
+        )
+    return random_generator.sample(vocabulary_keywords, config.keyword_count)
+
+
+def load_usable_vocabulary(vocabulary_path: Path) -> list[str]:
+    temp_path = create_temp_vocabulary_path()
+    try:
+        export_usable_vocabulary(vocabulary_path, temp_path)
+        with temp_path.open("r", encoding="utf-8") as handle:
+            keywords = [line.strip() for line in handle if line.strip()]
+        if not keywords:
+            raise ValueError(f"Vocabulary has no usable keywords: {vocabulary_path}")
+        return keywords
+    finally:
+        try:
+            temp_path.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def create_temp_vocabulary_path() -> Path:
+    temp_file = tempfile.NamedTemporaryFile(
+        prefix="bft-sse-usable-vocabulary-",
+        suffix=".txt",
+        delete=False,
+    )
+    temp_path = Path(temp_file.name)
+    temp_file.close()
+    return temp_path
+
+
+def export_usable_vocabulary(vocabulary_path: Path, output_path: Path) -> None:
+    command = [
+        str(ROOT_DIR / "gradlew"),
+        "--quiet",
+        "exportUsableVocabulary",
+        f"-PvocabularyInput={vocabulary_path}",
+        f"-PvocabularyOutput={output_path}",
+    ]
+    subprocess.run(command, cwd=ROOT_DIR, check=True)
 
 
 def format_doc_id(doc_index: int, doc_id_width: int) -> str:
@@ -146,6 +205,7 @@ def format_doc_id(doc_index: int, doc_id_width: int) -> str:
 def print_summary(config: SyntheticConfig) -> None:
     print("Generated synthetic dataset:")
     print(f"  output: {config.output_path}")
+    print(f"  vocabulary: {config.vocabulary_path}")
     print(f"  keywords: {config.keyword_count}")
     print(f"  keyword-doc associations: {config.association_count}")
     print(f"  keywords per doc count: {config.keywords_per_doc_count}")

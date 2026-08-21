@@ -255,6 +255,7 @@ generate_base_dataset() {
   echo "Generating synthetic base DB dataset..."
   python3 "$ABS_SYNTHETIC_DATASET_SCRIPT" \
     --output "$ABS_BASE_DATASET_PATH" \
+    --vocabulary "$ROOT_DIR/datasets/vocabulary/vocabulary.txt" \
     --keywords-per-doc-count "$POPULATE_SYNTHETIC_KEYWORDS_PER_DOC_COUNT" \
     --doc-counts "$BASE_SYNTHETIC_DOC_COUNTS" \
     --seed "$BASE_SYNTHETIC_SEED"
