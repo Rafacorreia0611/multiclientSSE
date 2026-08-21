@@ -70,7 +70,7 @@
 
 	<logger name="demo" level="INFO"/>
 
-	<logger name="measurement" level="INFO"/>
+	<logger name="measurement" level="OFF"/>
 
 
 	<!-- SPECIFIC CLASS LOGS -->
