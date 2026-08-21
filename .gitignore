@@ -37,3 +37,6 @@ multiclientSSE-hosts-nodes
 
 # Ignore local Gradle deployment properties
 /gradle.properties
+
+# Ignore local notes
+NOTES.md
